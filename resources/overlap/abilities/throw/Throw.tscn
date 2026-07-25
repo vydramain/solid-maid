@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://cv4exexfb86ps"]
-
-[ext_resource type="Script" uid="uid://csbiymrvk7355" path="res://resources/overlap/abilities/throw/throw.gd" id="1_6u11h"]
-
-[node name="Throw" type="Node"]
-script = ExtResource("1_6u11h")

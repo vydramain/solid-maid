@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://bnqlnu56hwm0d"]
-
-[ext_resource type="Script" uid="uid://bslogb5xywedu" path="res://resources/overlap/abilities/ability.gd" id="1_r3sv7"]
-
-[node name="Ability" type="Node"]
-script = ExtResource("1_r3sv7")

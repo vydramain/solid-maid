@@ -1,5 +1,0 @@
-[gd_scene format=3 uid="uid://dyofvi4mnkwll"]
-
-[node name="Borders" type="Area2D" groups=["Environment"]]
-
-[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="."]

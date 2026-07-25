@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://cdt58pkaip6mv"]
-
-[ext_resource type="Script" uid="uid://ciblwrspm84kg" path="res://resources/overlap/controller_slot/controller_slot.gd" id="1_xms62"]
-
-[node name="ControllerSlot" type="Node"]
-script = ExtResource("1_xms62")

@@ -1,5 +1,0 @@
-[gd_scene format=3 uid="uid://b0mik7r36f1p6"]
-
-[node name="StaticBody2D" type="StaticBody2D" groups=["Environment"]]
-
-[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="."]

@@ -1,8 +1,0 @@
-[gd_scene load_steps=2 format=3]
-
-[ext_resource type="Script" path="res://resources/overlap/abilities/interactor/interactor.gd" id="1_more4"]
-
-[node name="Interactor" type="RayCast3D"]
-script = ExtResource("1_more4")
-target_position = Vector3(0, 0, -2)
-enabled = true

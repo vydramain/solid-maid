@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://c3lugepxtfybs"]
-
-[ext_resource type="Script" uid="uid://cfy4lwi35m3h2" path="res://resources/overlap/affordances/melee/melee.gd" id="1_3pm6k"]
-
-[node name="Melee" type="Node" unique_id=1808811044]
-script = ExtResource("1_3pm6k")

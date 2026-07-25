@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://gyuydixv2g5w"]
-
-[ext_resource type="Script" uid="uid://or1q038skw3q" path="res://resources/overlap/abilities/carry/carry.gd" id="1_p1l6q"]
-
-[node name="Carry" type="Node"]
-script = ExtResource("1_p1l6q")

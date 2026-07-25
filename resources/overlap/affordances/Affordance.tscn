@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://m4gh4hl584r7"]
-
-[ext_resource type="Script" uid="uid://dmt7xvvxqcc4i" path="res://resources/overlap/affordances/affordance.gd" id="1_7a0ai"]
-
-[node name="Affordance" type="Node"]
-script = ExtResource("1_7a0ai")

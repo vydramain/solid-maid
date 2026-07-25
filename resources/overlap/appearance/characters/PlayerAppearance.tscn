@@ -1,5 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://t7tc4nlxy58s"]
-
-[ext_resource type="PackedScene" uid="uid://cetqa5887fey5" path="res://assets/models/player/ComfyUI_00014_.glb" id="1_cmr15"]
-
-[node name="PlayerAppearance" instance=ExtResource("1_cmr15")]

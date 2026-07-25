@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://bxkksibsc6esk"]
-
-[ext_resource type="Script" uid="uid://5bs5q5kbmjpn" path="res://resources/overlap/vitality/vitality.gd" id="1_27uys"]
-
-[node name="Vitality" type="Node"]
-script = ExtResource("1_27uys")

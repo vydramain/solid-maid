@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://btxiq1qykgkxl"]
-
-[ext_resource type="Script" uid="uid://d1ey68nl1gjac" path="res://resources/overlap/controller_slot/controller_for_player/controller_for_player.gd" id="1_4amrl"]
-
-[node name="ControllerForPlayer" type="Node" unique_id=2055077189]
-script = ExtResource("1_4amrl")

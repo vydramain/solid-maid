@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://c1yjs6j4jxnha"]
-
-[ext_resource type="Script" uid="uid://ckrdk66b76lk8" path="res://resources/overlap/legacy/legacy_throwable/Throwable.gd" id="1_mm8vi"]
-
-[node name="Throwable" type="Node2D"]
-script = ExtResource("1_mm8vi")

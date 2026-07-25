@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://d02e2gtddf2l1"]
-
-[ext_resource type="Script" uid="uid://b2u5sxes0i72y" path="res://resources/overlap/affordances/carriable/carriable.gd" id="1_3gld2"]
-
-[node name="Carriable" type="Node"]
-script = ExtResource("1_3gld2")

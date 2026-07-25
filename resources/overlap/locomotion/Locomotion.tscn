@@ -1,8 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://bcgj83svp1tsv"]
-
-[ext_resource type="Script" uid="uid://dj3di6vhdlhqc" path="res://resources/overlap/locomotion/locomotion.gd" id="1_njqar"]
-
-[node name="Locomotion" type="CharacterBody3D"]
-script = ExtResource("1_njqar")
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]

@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://br6pw5lq0e7j3"]
-
-[ext_resource type="Script" uid="uid://5tj1pqv4pgca" path="res://resources/overlap/appearance/body_component.gd" id="1_dv2vr"]
-
-[node name="BodyComponent" type="Node3D"]
-script = ExtResource("1_dv2vr")

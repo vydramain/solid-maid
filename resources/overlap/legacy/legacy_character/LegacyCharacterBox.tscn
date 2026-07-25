@@ -1,8 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://depc4dbj25g2q"]
-
-[ext_resource type="Script" uid="uid://dnfo1hsn41t1t" path="res://resources/overlap/legacy/legacy_character/LegacyCharacterBox.gd" id="1_petnw"]
-
-[node name="CharacterBox" type="CharacterBody2D"]
-script = ExtResource("1_petnw")
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
