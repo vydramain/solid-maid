@@ -1,7 +1,7 @@
 # Art & Audio
 
 Everything here is bound by the console budget. See
-[`../../../docs/platform/specs.md`](../../../docs/platform/specs.md) — the numbers
+[the console's `specs.md`](https://github.com/vydramain/3dmppc-polymer/blob/master/docs/platform/specs.md) — the numbers
 below are the reference console's answers, and **the video and sound budgets are
 contractually enforced**: the pools answer `RV_ERR_NOMEM` when they run out, and
 `mppcburner` re-checks them at pack time.

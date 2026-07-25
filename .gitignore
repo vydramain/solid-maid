@@ -1,17 +1,24 @@
-# Godot 4+ specific ignores
-.godot/
-.nomedia
+# Build output — a burned disc and the CMake project mppcburner leaves behind
+# while compiling one. Both are regenerated from what is tracked here.
+/build/
+.mppcburn/
+*.mppcdisc
+*.mppctex
 
-# Godot-specific ignores
-.import/
-export.cfg
-export_credentials.cfg
-*.tmp
+# Memory-card images written by the console while this disc plays
+*.mppccard
 
-# Imported translations (automatically generated from CSV files)
-*.translation
+# Frame dumps (--dump-frame)
+*.ppm
 
-# Mono-specific ignores
-.mono/
-data_*/
-mono_crash.*.json
+# Run logs
+output.log
+*.log
+
+# Editor / IDE
+.vscode/
+.idea/
+.cache/
+
+# OS
+.DS_Store

@@ -7,7 +7,7 @@ beats sprawling and unfinished.
 > The original fine-grained task list targeted Godot scenes/scripts. It was **not
 > carried forward verbatim** — the game now runs on the mppc console runtime, so
 > tasks are re-framed engine-agnostically below. Adjust as the console's
-> disc API firms up in [`../../../docs/platform/`](../../../docs/platform/).
+> disc API firms up in [the console's platform docs](https://github.com/vydramain/3dmppc-polymer/tree/master/docs/platform).
 
 ## Cadence & sizing
 

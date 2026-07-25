@@ -34,7 +34,7 @@ pressure. Compact, tone-first, one sitting.
 
 The **3dmppc console** — a PSX-like fantasy console. The game ships as a single
 `.mppcdisc` disc. See [console fit](README.md#console-fit-hard-constraints)
-and [`../../../docs/platform/specs.md`](../../../docs/platform/specs.md).
+and [the console's `specs.md`](https://github.com/vydramain/3dmppc-polymer/blob/master/docs/platform/specs.md).
 (Originally a Godot 4.5 PC project; re-targeted to the console.)
 
 ## Pillars

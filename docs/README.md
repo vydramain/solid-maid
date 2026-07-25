@@ -1,6 +1,6 @@
 # Solidmaid: Alkoldun Vasiliusavich — the reference disc
 
-The main game for the [3dmppc console](../../../docs/platform/), shipping as a
+The main game for the [3dmppc console](https://github.com/vydramain/3dmppc-polymer), shipping as a
 `.mppcdisc` package. A first-person folk-horror shooter set in the post-Soviet
 1990s.
 
@@ -18,9 +18,9 @@ the streetlights, the apartment, the palette, and the music all derive from it.
 There is no HUD counter and no second countdown anywhere.
 
 It is also the project by which we **prove the console**: the first real
-disc. Once it runs well, the console and the game get split into separate
-repositories — so keep this design free of console *implementation* detail
-(that belongs in [`../../../docs/platform/`](../../../docs/platform/)).
+disc. The console and the game now live in **separate repositories** — so keep
+this design free of console *implementation* detail (that belongs in
+[the console's platform docs](https://github.com/vydramain/3dmppc-polymer/tree/master/docs/platform)).
 
 This directory holds only the **design**. The buildable content of the game
 (assets, gameplay code, data) lives alongside it in the disc — see
@@ -41,10 +41,10 @@ This directory holds only the **design**. The buildable content of the game
 | [`production.md`](production.md)      | Milestones, backlog, metrics, risks, post-jam backlog.    |
 | [`protagonist_profile.md`](protagonist_profile.md) | The protagonist's fixed visual canon (modeling reference). |
 
-Buildable content (art, models, gameplay code, data) lives in the disc:
-[`../assets/`](../assets/), [`../src/`](../src/), [`../data/`](../data/) — e.g.
-the protagonist `.glb` model and concept sketch are in
-[`../assets/`](../assets/).
+Buildable content (art, models, gameplay code, data) lives alongside these docs
+in the disc: [`../assets/`](../assets/), [`../scripts/`](../scripts/),
+[`../data/`](../data/) — e.g. the protagonist `.glb` model and concept sketch
+are in [`../assets/`](../assets/).
 
 ## Jam scope at a glance
 
@@ -64,10 +64,10 @@ any second numeric system, procedural world corruption.
 ## Console fit (hard constraints)
 
 The hardware limits from
-[`../../../docs/platform/specs.md`](../../../docs/platform/specs.md). Every
+[the console's `specs.md`](https://github.com/vydramain/3dmppc-polymer/blob/master/docs/platform/specs.md). Every
 design decision in this game must fit within them. If an idea can't fit (say,
 512×512 textures), that's a proposal to change the *console spec* — take it to
-[`../../../docs/platform/`](../../../docs/platform/), don't bend the game docs
+[the console's platform docs](https://github.com/vydramain/3dmppc-polymer/tree/master/docs/platform), don't bend the game docs
 around it:
 
 - **Display:** 320×240 (or 256×224), 16-bit color + dithering.

@@ -59,7 +59,7 @@ the "same route, worse each time" structure of short narrative horror.
 The game runs on the 3dmppc console: a **software rasterizer** with a fixed
 virtual budget. Its limitations are not obstacles to hide — they are the visual
 identity, and the design leans into every one of them. Authoritative numbers are
-in [`../../../docs/platform/specs.md`](../../../docs/platform/specs.md).
+in [the console's `specs.md`](https://github.com/vydramain/3dmppc-polymer/blob/master/docs/platform/specs.md).
 
 ### Frame and colour
 

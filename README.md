@@ -1,28 +1,38 @@
-# solid — disc
+# Solidmaid: Alkoldun Vasiliusavich — an mppc disc
 
-*Solidmaid: Alkoldun Vasiliusavich* — the reference game for the 3dmppc console.
-This directory is the **buildable content** of the disc; the **design** lives in
-[`../../docs/mppcdisc/solid/`](../../docs/mppcdisc/solid/).
+A first-person folk-horror shooter set in the post-Soviet 1990s, built as a
+`.mppcdisc` for the [3dmppc console](https://github.com/vydramain/3dmppc-polymer).
+
+This repository is the whole disc: its **design** in [`docs/`](docs/) and its
+**buildable content** in [`assets/`](assets/), [`scripts/`](scripts/), and
+[`data/`](data/). The console lives in its own repository and knows nothing
+about this game — see
+[its README](https://github.com/vydramain/3dmppc-polymer#readme) for how a disc
+is burned and run.
 
 ## Layout
 
 ```
-solid/
-  assets/     art, models, textures, audio
-              - protagonist.obj          (runtime model: PSX-style low-poly,
-                                          900 tris, palette-atlas UVs)
-              - protagonist_tex.png      (runtime texture: 64x64 palette atlas,
-                                          16 swatches, canon colors)
-              - protagonist_model.glb    (source: AI-generated high-poly the
-                                          low-poly was decimated from)
-              - protagonist_scetch.png   (protagonist concept sketch)
-  scripts/    gameplay logic (planned: Lua) — stub
-  data/       levels, tuning tables, save schema, loop flags — stub
+assets/     art, models, textures, audio
+            - protagonist.obj          (runtime model: PSX-style low-poly,
+                                        900 tris, palette-atlas UVs)
+            - protagonist.mtl          (its material)
+            - protagonist_tex.png      (runtime texture: 64x64 palette atlas,
+                                        16 swatches, canon colors)
+            - protagonist_model.glb    (source: AI-generated high-poly the
+                                        low-poly was decimated from; Git LFS)
+            - protagonist_scetch.png   (protagonist concept sketch)
+            - enemies/ home/ outside/ player/ …
+                                       (Godot-era pixel art, kept as source
+                                        material for the console's textures)
+docs/       the design — start at docs/README.md
+scripts/    gameplay logic (planned: Lua) — stub
+data/       levels, tuning tables, save schema, loop flags — stub
 ```
 
-Nothing loads these files yet: the console reads disc content through the disc
-drive (`rv_cd`), which is still a stub, so no assets are copied into the build
-tree. The `.glb` source and the sketch stay here as references either way.
+Nothing loads these files yet: the disc is not burned against the console's
+`pdk/` contract so far, so no `disc.toml` and no `src/` exist here. The `.glb`
+source and the sketch stay here as references either way.
 
 ## Status
 
@@ -31,12 +41,21 @@ from the Godot-era concept art via voxel-remesh → decimate → procedural pale
 paint). Everything else is to be built as the console's disc API comes
 online. See the design docs for what goes here:
 
-- [`../../docs/mppcdisc/solid/overview.md`](../../docs/mppcdisc/solid/overview.md) — the game
-- [`../../docs/mppcdisc/solid/art-and-audio.md`](../../docs/mppcdisc/solid/art-and-audio.md) — asset budget & pipeline
-- [`../../docs/mppcdisc/solid/production.md`](../../docs/mppcdisc/solid/production.md) — milestones
+- [`docs/overview.md`](docs/overview.md) — the game
+- [`docs/art-and-audio.md`](docs/art-and-audio.md) — asset budget & pipeline
+- [`docs/production.md`](docs/production.md) — milestones
 
 ## Budget reminder
 
 Assets here must fit the console: 320×240, 16-bit + dithering, **4/8-bit
 paletted textures**, 1 MB VRAM, 2 MB RAM. See
-[`../../docs/platform/specs.md`](../../docs/platform/specs.md).
+[the console's `specs.md`](https://github.com/vydramain/3dmppc-polymer/blob/master/docs/platform/specs.md).
+
+## Working on this alongside the console
+
+The console repository ignores symlinked discs, so you can put this checkout on
+its shelf and keep both under their own version control:
+
+```sh
+ln -s "$PWD" ../3dmppc-polymer/mppcdiscs/solid-maid
+```
