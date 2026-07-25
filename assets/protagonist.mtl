@@ -1,0 +1,4 @@
+# Material for DCC tools (Blender etc.) — the 3dmppc engine ignores .mtl files.
+newmtl protagonist
+Kd 1.000 1.000 1.000
+map_Kd protagonist_tex.png
