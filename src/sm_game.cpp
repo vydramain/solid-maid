@@ -131,8 +131,7 @@ sm_autopilot::drive(sm_mode mode, const sm_countdown &state,
     // Tap, do not hold: a held button on the title would be consumed as the
     // first frame's hand press in play.
     if ((frames_ % 30) < 6)
-      pad_.right_trigger = 1.0f;
-    pad_.buttons |= rv_pdk::RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL;
+      pad_.buttons |= rv_pdk::RV_ISOURCE_FRONT_BTTN_SOUTH;
     if (mode == SM_MODE_ENDING)
       finished_ = true;
     return &pad_;
@@ -363,22 +362,27 @@ sm_autopilot::drive(sm_mode mode, const sm_countdown &state,
   } else if (fetch_here && distance < 1.7f) {
     // Tap, do not hold: a held hand button on a brick would begin a throw the
     // instant the pickup succeeds.
-    if ((frames_ % 18) < 5)
+    if ((frames_ % 18) < 5) {
       pad_.right_trigger = 1.0f;
-    pad_.buttons |= rv_pdk::RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL;
+      pad_.buttons |= rv_pdk::RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL;
+    }
   } else if (threatened && target_range < SM_PIPE_RANGE * 0.9f &&
              combat.has(SM_ITEM_PIPE)) {
     // Up close the pipe is the answer, and it is the dependable one: it is
     // never consumed, so the harness cannot disarm itself.
-    if ((frames_ % 26) < 6)
+    if ((frames_ % 26) < 6) {
       pad_.left_trigger = 1.0f;
-    pad_.buttons |= rv_pdk::RV_ISOURCE_LEFT_TRIGGER_SOFT_PULL;
+      pad_.buttons |= rv_pdk::RV_ISOURCE_LEFT_TRIGGER_SOFT_PULL;
+    }
   } else if (threatened && combat.has(SM_ITEM_BRICK) &&
              std::fabs(delta) < 0.30f) {
     // Charge, then release by simply stopping — the throw is a falling edge.
-    if ((frames_ % 54) < 30)
+    // Charge for half the cycle, then let go — the throw is a FALLING edge, so
+    // the trigger has to actually come back up.
+    if ((frames_ % 54) < 30) {
       pad_.right_trigger = 1.0f;
-    pad_.buttons |= rv_pdk::RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL;
+      pad_.buttons |= rv_pdk::RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL;
+    }
   } else if (work_here && distance < SM_ASSEMBLY_REACH * 0.8f) {
     pad_.right_trigger = 1.0f;
     pad_.buttons |= rv_pdk::RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL; // hold to work
@@ -390,12 +394,23 @@ sm_autopilot::drive(sm_mode mode, const sm_countdown &state,
 // ── game
 // ──────────────────────────────────────────────────────────────────────
 
-void sm_game::initialize(rv_pdk::rv_pdko &pdk, sm_assets &assets, sm_gfx &gfx) {
+void sm_game::initialize(rv_pdk::rv_pdko &pdk, sm_assets &assets, sm_gfx &gfx,
+                         sm_sound &sound) {
   pdk_ = &pdk;
   assets_ = &assets;
   gfx_ = &gfx;
+  sound_ = &sound;
+  // Sound joins hitstop and shake as the third channel every system already
+  // has a handle on.
+  feel_.sound = sound_;
 
   autopilot_.enable_from_environment();
+  if (autopilot_.enabled() && sound_) {
+    std::fprintf(stderr,
+                 "[play] sound bank: %d missing, %lld bytes of %d KiB sound RAM\n",
+                 sound_->missing(),
+                 static_cast<long long>(sound_->sound_bytes()), 1024);
+  }
 
   sm_countdown loaded{};
   // Development only: start the run at a chosen point on the countdown.
@@ -469,17 +484,44 @@ void sm_game::enter_area(sm_area area) {
   if (carried_left != SM_ITEM_NONE)
     combat_.give(carried_left);
   enemies_.reset();
-  feel_ = sm_feel{};
+  // Clear the per-area feedback state, but NOT the sound handle: `feel_ =
+  // sm_feel{}` wiped it along with the hitstop and the shake, and since every
+  // system fires its cues through sm_feel, that one line silenced every effect
+  // in the game from the first area onward while the music — which goes
+  // straight through sound_ — kept playing and hid it.
+  feel_.hitstop = 0.0f;
+  feel_.shake = 0.0f;
+  feel_.sound = sound_;
 
   television_on_ = false;
   assembly_hold_ = 0.0f;
   assembly_interrupt_flash_ = 0.0f;
   assembly_done_ = false;
   board_clack_ = 0.0f;
+  shift_end_ = 0.0f;
   return_open_ = false;
   escalation_released_ = false;
   prompt_ = SM_PROMPT_NONE;
   prompt_index_ = -1;
+
+  // The melody of the area we just walked into, played whole. The impoverishment
+  // ramp reaches the music in exactly one place and no other: at zero there is
+  // no melody at all, which is what docs/art-and-audio.md asks for — "no new
+  // composition, no final theme, no swell at ПЛАН ВЫПОЛНЕН". Shortening the loop
+  // per tier was tried and dropped: it truncates a written phrase mid-thought
+  // for a difference almost nobody would hear.
+  if (sound_) {
+    if (state_.is_final_lap()) {
+      sound_->stop_song();
+    } else {
+      const sm_song song = area == SM_AREA_HOME      ? SM_SONG_HOME
+                           : area == SM_AREA_STREET  ? SM_SONG_STREET
+                                                     : SM_SONG_FACTORY;
+      sound_->play_song(song);
+    }
+  }
+  step_from_ = scene_.player_start;
+  step_distance_ = 0.0f;
 
   // Spare bricks, so the brick never reads as a resource that counts down.
   for (const rv_vec3 &spot : scene_.brick_spawns)
@@ -617,6 +659,7 @@ void sm_game::handle_hands(const sm_input &input, float dt) {
   const rv_vec3 eye = player_.eye();
   const rv_vec3 forward = player_.forward();
 
+  const sm_prompt previous_prompt = prompt_;
   prompt_index_ =
       sm_scene_pick_interactable(scene_, eye, forward, SM_ASSEMBLY_REACH);
   prompt_ = SM_PROMPT_NONE;
@@ -660,6 +703,12 @@ void sm_game::handle_hands(const sm_input &input, float dt) {
     prompt_world_brick_ = true;
   }
 
+  // The prompt announces itself once, on the frame it appears — "a very quiet
+  // tick for the interact prompt" (docs/art-and-audio.md). Fired on the LEVEL it
+  // would buzz for as long as the player stood there looking at the thing.
+  if (prompt_ != SM_PROMPT_NONE && previous_prompt == SM_PROMPT_NONE)
+    feel_.cue(SM_SFX_UI_PROMPT, 0.7f);
+
   // Right hand: pick up / throw / work.
   if (input.hand_right_pressed) {
     if (prompt_ == SM_PROMPT_TAKE_BRICK) {
@@ -668,9 +717,11 @@ void sm_game::handle_hands(const sm_input &input, float dt) {
       } else {
         combat_.give(SM_ITEM_BRICK);
       }
+      feel_.cue(SM_SFX_PICKUP);
       if (autopilot_.enabled())
         std::fprintf(stderr, "[play] took the brick\n");
     } else if (prompt_ == SM_PROMPT_TAKE_PIPE) {
+      feel_.cue(SM_SFX_PICKUP);
       combat_.give(SM_ITEM_PIPE);
       if (autopilot_.enabled())
         std::fprintf(stderr, "[play] took the pipe\n");
@@ -694,6 +745,7 @@ void sm_game::handle_hands(const sm_input &input, float dt) {
       } else {
         combat_.give(SM_ITEM_BRICK);
       }
+      feel_.cue(SM_SFX_PICKUP);
     } else if (prompt_ == SM_PROMPT_TELEVISION) {
       television_on_ = !television_on_;
     } else if (prompt_ != SM_PROMPT_ASSEMBLE && combat_.has(SM_ITEM_PIPE)) {
@@ -713,14 +765,17 @@ void sm_game::update_assembly(const sm_input &input, float dt) {
   // bench is inactive), so putting it first is safe as well as necessary.
   if (assembly_done_) {
     // The beat after the board clacks, where the player gets to look at it.
-    if (board_clack_ > 0.0f) {
+    if (board_clack_ > 0.0f)
       board_clack_ -= dt;
-      if (board_clack_ <= 0.0f) {
-        return_open_ = true;
-        for (sm_trigger &trigger : scene_.triggers) {
-          if (trigger.id == SM_TRIGGER_RETURN_HOME)
-            trigger.active = true;
-        }
+
+    // Then the shift simply ends. No return trigger, no door to walk back to:
+    // the count is put on screen for a few seconds and the fade takes him home
+    // as if he had walked out himself.
+    if (shift_end_ > 0.0f) {
+      shift_end_ -= dt;
+      if (shift_end_ <= 0.0f) {
+        shift_end_ = 0.0f;
+        begin_transition(SM_PHASE_HOME, SM_AREA_HOME);
       }
     }
     return;
@@ -772,7 +827,13 @@ void sm_game::update_assembly(const sm_input &input, float dt) {
           item.active = false;
       }
       board_clack_ = SM_BOARD_CLACK_HOLD;
+      // The one docs/art-and-audio.md calls the most important sound in the
+      // game: the digit turning over, alone.
+      feel_.cue(SM_SFX_BOARD_CLACK);
       feel_.impact(0.0f, SM_SHAKE_IMPACT);
+      // The shift ends by itself now. The player is told how many are left and
+      // walks out on their behalf; there is no door to find.
+      shift_end_ = SM_SHIFT_END_HOLD;
       sm_save_store(pdk_ ? pdk_->cm() : nullptr, state_);
     }
   }
@@ -800,6 +861,10 @@ void sm_game::update(const sm_input &input, float dt) {
   if (input.view_pressed)
     debug_overlay_ = !debug_overlay_;
 
+  // The REAL dt, deliberately: a hitstop freezes the world, not the music.
+  if (sound_)
+    sound_->update(dt);
+
   last_input_ = input;
 
   switch (mode_) {
@@ -807,13 +872,13 @@ void sm_game::update(const sm_input &input, float dt) {
     // The left hand abandons a saved run and starts again from five.
     // "Restartable at any time" (docs/gameplay.md §5) needs a way in,
     // and finishing the game was previously the only one.
-    if (input.hand_left_pressed && has_save_) {
+    if (input.cancel_pressed && has_save_) {
       state_ = sm_countdown{};
       has_save_ = false;
       sm_save_store(pdk_ ? pdk_->cm() : nullptr, state_);
       enter_area(SM_AREA_HOME);
     }
-    if (input.hand_right_pressed || input.hand_left_pressed) {
+    if (input.confirm_pressed || input.cancel_pressed) {
       if (autopilot_.enabled())
         std::fprintf(stderr, "[play] start\n");
       mode_ = SM_MODE_FADE_IN;
@@ -848,8 +913,7 @@ void sm_game::update(const sm_input &input, float dt) {
     // it is down, a hand button starts a fresh run: a player left on a
     // black screen with no input accepted has been softlocked by the
     // credits, which is not an ending.
-    if (mode_time_ > SM_ENDING_HOLD + SM_ENDING_FADE &&
-        (input.hand_right_pressed || input.hand_left_pressed)) {
+    if (mode_time_ > SM_ENDING_HOLD + SM_ENDING_FADE && input.confirm_pressed) {
       state_ = sm_countdown{};
       has_save_ = false;
       sm_save_store(pdk_ ? pdk_->cm() : nullptr, state_);
@@ -867,6 +931,20 @@ void sm_game::update(const sm_input &input, float dt) {
     handle_hands(input, step);
     player_.update(input, scene_, enemies_, feel_, step);
 
+    // Footfall, paced by METRES WALKED rather than by seconds, so a player
+    // scraping along a wall does not march on the spot.
+    if (sound_) {
+      const rv_vec3 moved = player_.position() - step_from_;
+      step_from_ = player_.position();
+      step_distance_ += std::sqrt(moved.x * moved.x + moved.z * moved.z);
+      if (step_distance_ >= SM_STEP_STRIDE) {
+        step_distance_ -= SM_STEP_STRIDE;
+        sound_->footstep(area_ == SM_AREA_HOME     ? SM_SONG_HOME
+                         : area_ == SM_AREA_STREET ? SM_SONG_STREET
+                                                   : SM_SONG_FACTORY);
+      }
+    }
+
     if (step > 0.0f) {
       encounters_.update(step, enemies_, player_.position());
 
@@ -881,6 +959,7 @@ void sm_game::update(const sm_input &input, float dt) {
           if (assembly_hold_ > 0.0f) {
             assembly_hold_ = 0.0f;
             assembly_interrupt_flash_ = 0.6f;
+            feel_.cue(SM_SFX_ASSEMBLY_BREAK);
           }
         }
       }
@@ -903,7 +982,7 @@ void sm_game::update(const sm_input &input, float dt) {
     std::fprintf(
         stderr,
         "[trace] t=%5.1fs pos=(%6.2f,%6.2f) yaw=%5.2f pitch=%5.2f prompt=%d "
-        "hands=%d/%d hp=%3d enemies=%d prims=%4d/%4d dropped=%d\n",
+        "hands=%d/%d hp=%3d enemies=%d prims=%4d/%4d bars=%d\n",
         static_cast<double>(autopilot_.frames()) / 60.0,
         static_cast<double>(at.x), static_cast<double>(at.z),
         static_cast<double>(player_.yaw()),
@@ -911,7 +990,7 @@ void sm_game::update(const sm_input &input, float dt) {
         static_cast<int>(combat_.right_hand()),
         static_cast<int>(combat_.left_hand()), player_.hp(),
         enemies_.active_count(), gfx_ ? gfx_->submitted() : 0,
-        gfx_ ? gfx_->capacity() : 0, gfx_ ? gfx_->dropped() : 0);
+        gfx_ ? gfx_->capacity() : 0, sound_ ? sound_->bars_played() : 0);
   }
   injected_ =
       autopilot_.drive(mode_, state_, scene_, player_, enemies_, combat_, dt);
@@ -1028,6 +1107,26 @@ void sm_game::render() {
   build_hud(hud);
   sm_ui_draw_hud(*gfx_, *assets_, hud);
 
+  // The end-of-shift card. "ОСТАЛОСЬ СМЕН: N" — the count, stated in words, for
+  // a few seconds after the lamppost leaves the conveyor and before the fade
+  // takes him home.
+  if (shift_end_ > 0.0f) {
+    static const char label[] = "\xD0\x9E\xD0\xA1\xD0\xA2\xD0\x90\xD0\x9B"
+                                "\xD0\x9E\xD0\xA1\xD0\xAC \xD0\xA1\xD0\x9C"
+                                "\xD0\x95\xD0\x9D: ";
+    char line[40];
+    int i = 0;
+    for (const char *p = label; *p && i < 38; ++p)
+      line[i++] = *p;
+    line[i++] = static_cast<char>('0' + state_.board_digit());
+    line[i] = '\0';
+
+    const int w = gfx_->width();
+    const int h = gfx_->height();
+    sm_text_draw_centred(*gfx_, *assets_, w / 2, h / 2 - 6, line, SM_BOARD_INK, 2,
+                         SM_DEPTH_HUD_TEXT);
+  }
+
   if (mode_ == SM_MODE_KNOCKOUT) {
     sm_ui_draw_knockout(*gfx_, *assets_, fade_);
   } else if (mode_ == SM_MODE_ENDING) {
@@ -1074,6 +1173,16 @@ void sm_game::render() {
 }
 
 void sm_game::shutdown() {
+  if (autopilot_.enabled() && sound_) {
+    std::fprintf(stderr, "\n[audit] effects fired this run:\n");
+    for (int i = 0; i < SM_SFX_COUNT; ++i) {
+      const sm_sfx id = static_cast<sm_sfx>(i);
+      const int n = sound_->fired(id);
+      std::fprintf(stderr, "[audit] %-28s %6d%s\n", sm_sound::name_of(id), n,
+                   n == 0 ? "   <-- NEVER" : "");
+    }
+  }
+
   // The card is the last thing touched while the facade is still valid.
   //
   // A run that has not actually started is not worth saving: writing the

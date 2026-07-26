@@ -2,9 +2,11 @@
 //
 // docs/mechanics.md: "Weight is everything, and it's mostly cheap tricks
 // stacked well". In this build the trick stack is hitstop + camera micro-shake
-// + the enemy's own hurt flash and knockback, all landing on the same frame.
-// The loud sample the design also asks for is OUT OF SCOPE and is not stubbed:
-// there is no hook, no event, no silent player waiting to be filled in later.
+// + the enemy's own hurt flash and knockback + the loud sample the design asks
+// for, all landing on the same frame and fired from the same sm_feel, so they
+// arrive as ONE event rather than three that agree. The visual half stays
+// load-bearing on its own: cue() is a no-op with no bank loaded, and the game
+// has to remain finishable in silence.
 #include "sm_combat.hpp"
 
 #include <cmath>
@@ -52,10 +54,52 @@ float sm_noise_unit(uint32_t state) {
   return static_cast<float>((state >> 8) & 0xFFFFu) * (1.0f / 32767.5f) - 1.0f;
 }
 
+// ── where a sound is, to the ear
+// ──────────────────────────────────────────────
+//
+// The chip gives a voice an L/R volume and nothing else: no distance model, no
+// falloff, no listener (sm_sound.hpp). So a cue that happens somewhere in the
+// world works its two numbers out here. The range is a shade past the smoker's
+// aggro radius, so everything that can act on the player can be heard acting,
+// and the floor keeps a far-off telegraph audible rather than fading it to a
+// rumour — a windup the player cannot hear is a windup that is not a
+// telegraph.
+constexpr float SM_AUDIO_RANGE = 22.0f;
+constexpr float SM_AUDIO_FLOOR = 0.15f;
+
+void sm_cue_at(sm_feel &feel, sm_sfx id, rv_vec3 at, rv_vec3 listener,
+               rv_vec3 forward, float gain) {
+  const rv_vec3 to = at - listener;
+  const float distance = rv_pdklib::rv_length(to);
+  const float level =
+      clampf(1.0f - distance / SM_AUDIO_RANGE, SM_AUDIO_FLOOR, 1.0f);
+
+  // The listener's right hand, which is sm_right(yaw) read straight off the
+  // forward vector rather than recovered from it through an angle. Flattened
+  // and renormalised, so a player looking at their boots still hears which
+  // side of them a thing is on.
+  rv_vec3 right{forward.z, 0.0f, -forward.x};
+  const float span = std::sqrt(right.x * right.x + right.z * right.z);
+  float pan = 0.0f;
+  if (span > 1e-4f) {
+    right = right * (1.0f / span);
+    // Divided by the distance, but never by less than a metre: inside arm's
+    // reach the direction stops being meaningful and hard-panning it would
+    // only make a hit at the player's feet jump between the ears.
+    pan = rv_pdklib::rv_dot(to, right) / (distance > 1.0f ? distance : 1.0f);
+  }
+  feel.cue(id, gain * level, clampf(pan, -1.0f, 1.0f));
+}
+
 } // namespace
 
 // ── sm_feel
 // ───────────────────────────────────────────────────────────────────
+
+void sm_feel::cue(sm_sfx id, float gain, float pan) {
+  if (sound)
+    sound->play(id, gain, pan);
+}
 
 void sm_feel::impact(float hitstop_seconds, float shake_amount) {
   // MAX, never sum. Two enemies dying on the same frame must not stack into a
@@ -214,9 +258,9 @@ void sm_combat::begin_charge() {
 
 void sm_combat::release_throw(rv_vec3 eye, rv_vec3 forward, sm_feel &feel) {
   // A throw is not an impact. The weight of the brick is spent where it lands,
-  // not where it leaves the hand — see update().
-  (void)feel;
-
+  // not where it leaves the hand — see update(). It does have a voice, though,
+  // fired at the bottom of this function once the brick is genuinely in the
+  // air: a refused throw must stay silent or the sound stops meaning "gone".
   if (!charging_)
     return;
   charging_ = false;
@@ -246,13 +290,18 @@ void sm_combat::release_throw(rv_vec3 eye, rv_vec3 forward, sm_feel &feel) {
 
   right_hand_ = SM_ITEM_NONE; // it left the hand; the world has more
   throw_cooldown_ = SM_BRICK_COOLDOWN;
+
+  // In the player's own hands, so it is centred. Louder for a fuller charge:
+  // the charge is otherwise a purely visual quantity, and this is the one
+  // place the effort behind a throw is audible.
+  feel.cue(SM_SFX_BRICK_THROW, 0.70f + 0.30f * charge);
 }
 
 bool sm_combat::swing(sm_feel &feel) {
-  // Starting a swing is a telegraph, not a hit: nothing is felt until the
-  // active window connects.
-  (void)feel;
-
+  // Starting a swing is a telegraph, not a hit: nothing is FELT until the
+  // active window connects. It is heard, though — the windup is what confirms
+  // the input took, a whole SM_PIPE_WINDUP before the arc could land, and it
+  // is the player's own arm so it is centred and unattenuated.
   if (left_hand_ != SM_ITEM_PIPE)
     return false;
   if (swinging() || swing_cooldown_ > 0.0f)
@@ -260,6 +309,7 @@ bool sm_combat::swing(sm_feel &feel) {
 
   swing_time_ = 1e-4f; // strictly positive so swinging() reads true this frame
   swing_landed_ = false;
+  feel.cue(SM_SFX_PIPE_SWING);
   return true;
 }
 
@@ -349,6 +399,11 @@ void sm_combat::update(float dt, const sm_scene &scene, sm_enemies &enemies,
                                            SM_BRICK_DAMAGE, knock, feel);
     if (hits > 0) {
       feel.impact(SM_HITSTOP_HEAVY, SM_SHAKE_IMPACT);
+      // A body, not concrete: the dull one, at the point of contact rather
+      // than where the brick comes to rest. Same frame as the hitstop, the
+      // shake and the enemy's flash, which is the whole point of routing it
+      // through sm_feel.
+      sm_cue_at(feel, SM_SFX_BRICK_HIT_SOFT, to, eye, forward, 1.0f);
       brick.position = rv_vec3{to.x, scene.floor_y, to.z};
       brick.velocity = rv_vec3{0.0f, 0.0f, 0.0f};
       brick.airborne = false;
@@ -359,6 +414,10 @@ void sm_combat::update(float dt, const sm_scene &scene, sm_enemies &enemies,
     // Walls stop it. It drops where it was still clear, so a brick can never
     // come to rest inside geometry the player cannot reach into.
     if (!sm_scene_clear_line(scene, from, to)) {
+      // Concrete. Cued where the brick actually struck — the last point it was
+      // still clear — and not where it drops to, so a brick thrown at a wall
+      // across the street is heard over there.
+      sm_cue_at(feel, SM_SFX_BRICK_HIT_HARD, from, eye, forward, 1.0f);
       brick.position = rv_vec3{from.x, scene.floor_y, from.z};
       brick.velocity = rv_vec3{0.0f, 0.0f, 0.0f};
       brick.airborne = false;
@@ -369,6 +428,10 @@ void sm_combat::update(float dt, const sm_scene &scene, sm_enemies &enemies,
     // The floor, or the end of its patience. Either way it becomes a resting,
     // pickable brick — a brick is NEVER consumed, only relocated.
     if (to.y <= scene.floor_y || brick.life >= SM_BRICK_LIFETIME) {
+      // The floor is concrete too, so it is the same crack — and it doubles as
+      // the "you missed" report, which is worth as much as the hit is.
+      sm_cue_at(feel, SM_SFX_BRICK_HIT_HARD, rv_vec3{to.x, scene.floor_y, to.z},
+                eye, forward, 1.0f);
       brick.position = rv_vec3{to.x, scene.floor_y, to.z};
       brick.velocity = rv_vec3{0.0f, 0.0f, 0.0f};
       brick.airborne = false;
@@ -378,6 +441,20 @@ void sm_combat::update(float dt, const sm_scene &scene, sm_enemies &enemies,
 
     brick.position = to;
   }
+
+  // ── the enemies' own voices ───────────────────────────────────────────────
+  //
+  // Telegraphs, footfalls and bodies going down. They are pumped from here
+  // because sm_enemies::update() is handed no sm_feel and its signature is not
+  // this change's to alter — while THIS function is called on the very next
+  // line of sm_game's frame, inside the same `step > 0` block, and already
+  // holds every argument the cues need: the listener, its facing, the enemies
+  // and the dt they were just advanced by.
+  //
+  // Last in the function on purpose. By now the swing and the bricks above
+  // have filed their kills, so a death is heard on the frame it happens rather
+  // than on the one after it.
+  sm_enemy_audio(enemies, scene, eye, forward, dt, feel);
 }
 
 void sm_combat::scatter_brick(rv_vec3 position) {

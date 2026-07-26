@@ -557,17 +557,17 @@ void sm_ui_draw_title(sm_gfx &gfx, const sm_assets &assets, float pulse,
   // The title says what the game is called and nothing else. There is no
   // "5 shifts", no chapter, no progress, and no hint that anything is being
   // counted — the player is meant to meet the board cold.
-  sm_text_draw_centred(gfx, assets, w / 2, 62, "SOLIDMAID", SM_COL_TITLE_BG, 3,
-                       SM_DEPTH_HUD_TEXT);
-  sm_text_draw_centred(gfx, assets, w / 2, 100, "АЛКОЛДУН ВАСИЛИУСАВИЧ",
+  sm_text_draw_centred(gfx, assets, w / 2, 62, "АЛКОЛДУН ВАСИЛИУСАВИЧ",
+                       SM_COL_TITLE_BG, 3, SM_DEPTH_HUD_TEXT);
+  sm_text_draw_centred(gfx, assets, w / 2, 100, "Осталось смен: 5",
                        SM_COL_TITLE_BG, 1, SM_DEPTH_HUD_TEXT);
 
   // Colour cannot pulse — SAMPLE_TEXTURE would throw the tint away — so the
   // invitation blinks instead, which is what a machine of this era would have
   // done anyway. ~60 % duty so it reads as an invitation, not as an alarm.
   if (std::sin(pulse * 6.2831853f) > -0.35f) {
-    sm_text_draw_centred(gfx, assets, w / 2, 168, "НАЖМИТЕ КНОПКУ РУКИ",
-                         SM_COL_TITLE_BG, 1, SM_DEPTH_HUD_TEXT);
+    sm_text_draw_centred(gfx, assets, w / 2, 168, "НАЖМИТЕ A", SM_COL_TITLE_BG,
+                         1, SM_DEPTH_HUD_TEXT);
   }
 
   // A saved run is resumable, so say so — carefully. "The shift continues" is
@@ -578,7 +578,7 @@ void sm_ui_draw_title(sm_gfx &gfx, const sm_assets &assets, float pulse,
                          SM_COL_TITLE_BG, 1, SM_DEPTH_HUD_TEXT);
     // Which hand does which. Still no number, still nothing about how many
     // shifts there are — only that the left hand starts the week over.
-    sm_text_draw_centred(gfx, assets, w / 2, 206, "ЛЕВАЯ РУКА - СНАЧАЛА",
+    sm_text_draw_centred(gfx, assets, w / 2, 206, "B - СНАЧАЛА",
                          SM_COL_TITLE_BG, 1, SM_DEPTH_HUD_TEXT);
   }
 }

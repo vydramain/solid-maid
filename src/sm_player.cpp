@@ -272,10 +272,33 @@ void sm_player::damage(int amount, rv_vec3 from, bool bypass_iframes,
   if (!bypass_iframes)
     iframes_ = SM_PLAYER_IFRAMES;
 
-  // This is the whole confirmation of damage in a build with no audio, so it is
-  // set to full on EVERY hit, i-frames or not, cloud or fist.
+  // The flash is the confirmation that survives a missing sound bank, so it is
+  // still set to full on EVERY hit, i-frames or not, cloud or fist.
   hurt_flash_ = 1.0f;
   feel.impact(SM_HITSTOP_LIGHT, SM_SHAKE_HURT);
+
+  // Centred, both of these. They come out of the player's own body rather than
+  // from a place in the world, and panning a grunt to one ear would say the
+  // maid is standing somewhere she is not — `from` is the attacker, not the
+  // sound. Direction is the telegraph's job (sm_enemy_audio), and it has
+  // already done it.
+  //
+  // CHIP DAMAGE IS QUIETER, NOT SILENT. A cloud tick arrives every
+  // SM_CLOUD_TICK_PERIOD for as long as the player stands in it; at full level
+  // that is a hurt sample machine-gunning at 1.8 Hz, which stops reading as
+  // damage within two ticks and buries whatever else is happening. Suppressing
+  // it outright would be worse in the other direction: a cloud is invisible to
+  // hitstop, drains a fifth of the bar in five ticks, and the player needs to
+  // know they are still standing in it while they look for the way out. So it
+  // is the same sample, low enough to read as a wince rather than a blow, and
+  // paced by the cloud's own clock.
+  feel.cue(SM_SFX_PLAYER_HURT, bypass_iframes ? 0.40f : 1.0f);
+
+  // The killing blow keeps its hurt sound and gets the fall on top of it: two
+  // different samples, so they do not sum in phase, and the pair reads as one
+  // hit that did not stop.
+  if (dead())
+    feel.cue(SM_SFX_PLAYER_DEATH);
 }
 
 sm_view sm_player::view(const sm_feel &feel) const {

@@ -19,6 +19,7 @@
 #include "sm_game.hpp"
 #include "sm_gfx.hpp"
 #include "sm_input.hpp"
+#include "sm_sound.hpp"
 
 namespace solidmaid {
 
@@ -38,6 +39,7 @@ private:
   sm_assets assets_;
   sm_gfx gfx_;
   sm_input_reader reader_;
+  sm_sound sound_;
   sm_game game_;
   bool release_ = false;
   bool initialized_ = false;
@@ -69,8 +71,13 @@ int64_t rv_dmain::disc_initialize(rv_pdk::rv_pdko &pdk) {
   if (rc < 0)
     return rc;
 
+  // A missing or broken sound bank is NOT fatal. Every telegraph and every
+  // confirmation in this game has a visual half by construction, so the disc
+  // stays playable in silence rather than refusing to boot over a sample.
+  sound_.load(pdk);
+
   gfx_.attach(cv, width, height, capacity);
-  game_.initialize(pdk, assets_, gfx_);
+  game_.initialize(pdk, assets_, gfx_, sound_);
 
   initialized_ = true;
   return rv_pdk::RV_OK;
@@ -102,6 +109,7 @@ void rv_dmain::disc_shutdown() {
   // belonging to unmapped code cannot run.
   if (initialized_)
     game_.shutdown();
+  sound_.unload();
   assets_.unload();
   initialized_ = false;
 }

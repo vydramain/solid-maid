@@ -32,6 +32,9 @@ void deadzone(float x, float y, float threshold, float &out_x, float &out_y) {
 
 bool sm_hand_right_active(const rv_pdk::rv_istate &state,
                           bool allow_face_button) {
+  // Kept in the signature so the keyboard fallback can come back without
+  // touching every caller; the body currently answers on the triggers alone.
+  (void)allow_face_button;
   if (state.right_trigger >= SM_TRIGGER_THRESHOLD)
     return true;
   if (state.buttons & rv_pdk::RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL)
@@ -41,6 +44,7 @@ bool sm_hand_right_active(const rv_pdk::rv_istate &state,
 
 bool sm_hand_left_active(const rv_pdk::rv_istate &state,
                          bool allow_face_button) {
+  (void)allow_face_button;
   if (state.left_trigger >= SM_TRIGGER_THRESHOLD)
     return true;
   if (state.buttons & rv_pdk::RV_ISOURCE_LEFT_TRIGGER_SOFT_PULL)
@@ -85,6 +89,8 @@ void sm_input_reader::sample(rv_pdk::rv_cio *cio,
   out.hand_left_released = !hand_left && previous_hand_left_;
 
   const uint64_t rising = state.buttons & ~previous_buttons_;
+  out.confirm_pressed = (rising & rv_pdk::RV_ISOURCE_FRONT_BTTN_SOUTH) != 0;
+  out.cancel_pressed = (rising & rv_pdk::RV_ISOURCE_FRONT_BTTN_EAST) != 0;
   out.menu_pressed = (rising & rv_pdk::RV_ISOURCE_MENU_BTTN_MENU) != 0;
   out.menu_held = (state.buttons & rv_pdk::RV_ISOURCE_MENU_BTTN_MENU) != 0;
   out.view_pressed = (rising & rv_pdk::RV_ISOURCE_MENU_BTTN_VIEW) != 0;

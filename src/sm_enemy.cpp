@@ -22,9 +22,12 @@
 // ── AND THE ONE IT INHERITS
 // ───────────────────────────────────────────────────
 //
-// Audio is out of scope for this MVP, and the design leans on audio for enemy
-// telegraphs. Every one of those cues is carried by the visual channel alone,
-// which makes the two below load-bearing rather than decorative:
+// The design leans on audio for enemy telegraphs, and sm_enemy_audio() at the
+// foot of the sm_enemies section now supplies that half. It is an ADDITION and
+// never a substitution: sm_sound is optional, a missing bank is counted rather
+// than fatal, and the game must stay finishable in silence. So the two below
+// still carry every cue on their own, and are load-bearing rather than
+// decorative:
 //
 //   * THE HURT FLASH is the player's only confirmation that a hit landed.
 //     SAMPLE_TEXTURE *replaces* vertex colour on this console (the note at the
@@ -116,6 +119,18 @@ constexpr float SM_PUFF_LIFT[SM_CLOUD_PUFFS] = {0.05f, 0.00f, 0.12f, 0.02f,
 constexpr float SM_KIPUCHKA_WEAVE_RATE =
     SM_KIPUCHKA_JITTER / (2.0f * SM_KIPUCHKA_RADIUS);
 
+// One kipuchka footfall per 0.8 m of ground covered — at SM_KIPUCHKA_SPEED,
+// a step every quarter second, which is the gait of something small moving
+// fast. Held as a DISTANCE and converted into weave phase here, so the pace
+// stays honest about the ground covered rather than about the clock.
+constexpr float SM_KIPUCHKA_STEP_DISTANCE = 0.80f;
+constexpr float SM_KIPUCHKA_STEP_PHASE =
+    SM_KIPUCHKA_WEAVE_RATE * SM_KIPUCHKA_STEP_DISTANCE / SM_KIPUCHKA_SPEED;
+
+// A footfall is floor noise, not an event. Well under the telegraphs, which it
+// must never cover.
+constexpr float SM_KIPUCHKA_STEP_GAIN = 0.55f;
+
 // The smoker's orbit reverses about twice per lap of its standoff circle, and
 // the cloud rolls at the same rate so it never looks frozen.
 constexpr float SM_SMOKER_ORBIT_RATE = SM_SMOKER_SPEED / SM_SMOKER_STANDOFF;
@@ -163,6 +178,44 @@ uint8_t mix_channel(uint8_t a, uint8_t b, float t) {
 rv_pdk::rv_color mix_colour(rv_pdk::rv_color a, rv_pdk::rv_color b, float t) {
   return rv_pdk::rv_color{mix_channel(a.r, b.r, t), mix_channel(a.g, b.g, t),
                           mix_channel(a.b, b.b, t)};
+}
+
+// ── where a sound is, to the ear
+// ──────────────────────────────────────────────
+//
+// The chip gives a voice an L/R volume and nothing else: no distance model, no
+// falloff, no listener (sm_sound.hpp). So the two numbers a cue with a world
+// position needs are worked out here. SM_AUDIO_RANGE is a shade past the
+// smoker's aggro radius, so everything that can act on the player can be heard
+// acting; SM_AUDIO_FLOOR keeps the far end of that audible rather than fading
+// it to a rumour, because a telegraph nobody can hear is not a telegraph.
+//
+// A twin of the one in sm_combat.cpp, which is the same arrangement clampf has
+// in all three of these files: a few lines of local maths, not a shared
+// dependency.
+constexpr float SM_AUDIO_RANGE = 22.0f;
+constexpr float SM_AUDIO_FLOOR = 0.15f;
+
+void cue_at(sm_feel &feel, sm_sfx id, rv_vec3 at, rv_vec3 listener,
+            rv_vec3 forward, float gain) {
+  const rv_vec3 to = at - listener;
+  const float distance = rv_pdklib::rv_length(to);
+  const float level =
+      clampf(1.0f - distance / SM_AUDIO_RANGE, SM_AUDIO_FLOOR, 1.0f);
+
+  // The listener's right hand: sm_right(yaw) read straight off the forward
+  // vector instead of recovered from it through an angle, flattened so a
+  // player looking at their boots still hears which side a thing is on.
+  const rv_vec3 ahead = xz_direction(rv_vec3{0.0f, 0.0f, 0.0f}, forward);
+  float pan = 0.0f;
+  if (xz_length(ahead) > 0.5f) {
+    // Divided by the distance, but never by less than a metre: inside arm's
+    // reach a direction stops meaning much, and hard-panning it would only
+    // make something at the player's feet jump between the ears.
+    pan = rv_pdklib::rv_dot(to, xz_perpendicular(ahead)) /
+          (distance > 1.0f ? distance : 1.0f);
+  }
+  feel.cue(id, gain * level, clampf(pan, -1.0f, 1.0f));
 }
 
 // ── per-archetype body data
@@ -691,6 +744,123 @@ void sm_enemies::update(float dt, const sm_scene &scene,
   }
 }
 
+// ── the enemies' voices
+// ───────────────────────────────────────────────────────
+//
+// Every cue an enemy owes the player: the two telegraphs, the smoker's exhale,
+// a body going down, and the kipuchka's approach. All of it once per frame,
+// read off the state sm_enemies::update() has just left behind.
+//
+// WHY IT IS A FREE FUNCTION. update() is handed no sm_feel, and neither its
+// signature nor sm_enemy.hpp is this change's to alter. sm_combat::update() is
+// called on the next line of sm_game's frame, inside the same `step > 0`
+// block, and already holds the listener, its facing, these enemies and the dt
+// they were advanced by — so it pumps this, and nothing is heard late.
+//
+// WHY IT NEEDS NO STATE. A stage entered THIS frame is one whose stage_time is
+// still exactly 0.0f: update() assigns that literal on every transition and
+// only ever adds a strictly positive dt to it afterwards, so the window is
+// exactly one frame wide and the comparison is against a value that was
+// stored, never computed. A collapse is read off death_time the same way —
+// update() skips stage_time for a dying body but always advances death_time,
+// and this runs after the weapons have filed their kills, so the frame a body
+// starts falling is the frame death_time is still zero.
+void sm_enemy_audio(const sm_enemies &enemies, const sm_scene &scene,
+                    rv_vec3 listener, rv_vec3 forward, float dt,
+                    sm_feel &feel) {
+  if (dt <= 0.0f)
+    return;
+
+  // One voice per distinct sample per frame. sm_sound.hpp: two copies of one
+  // sample started on the same frame sum IN PHASE and "read as one loud hit
+  // rather than as two" — so the second is a wasted voice and 6 dB the mix did
+  // not ask for. Which is feel.impact()'s MAX rule, one channel across.
+  bool spoken[SM_SFX_COUNT] = {};
+  const auto say = [&](sm_sfx id, rv_vec3 at, float gain) {
+    if (spoken[id])
+      return;
+    spoken[id] = true;
+    cue_at(feel, id, at, listener, forward, gain);
+  };
+
+  const std::vector<sm_enemy> &all = enemies.enemies();
+  for (std::size_t i = 0; i < all.size(); ++i) {
+    const sm_enemy &e = all[i];
+    if (!e.alive)
+      continue;
+
+    // From the chest, like aim assist and for the same reason: a voice coming
+    // out of the floor pans harder than the figure making it does.
+    const rv_vec3 mouth = chest_of(e);
+
+    if (e.stage == SM_STAGE_DYING) {
+      if (e.death_time == 0.0f)
+        say(SM_SFX_ENEMY_DOWN, mouth, 1.0f);
+      continue;
+    }
+
+    if (e.stage_time == 0.0f) {
+      if (e.stage == SM_STAGE_WINDUP) {
+        // THE TELEGRAPH'S OTHER HALF, and the most load-bearing cue in the
+        // file. The pose and the pre-warm ring already say an attack is
+        // coming; this says WHERE FROM, which is the half a player cannot get
+        // out of a 320x240 silhouette on an unlit street — and locating it is
+        // exactly what docs/mechanics.md is asking the telegraph to buy.
+        say(e.kind == SM_ENEMY_SMOKER ? SM_SFX_SMOKER_PREWARM
+                                      : SM_SFX_KIPUCHKA_WINDUP,
+            mouth, 1.0f);
+      } else if (e.stage == SM_STAGE_STRIKE && e.kind == SM_ENEMY_SMOKER) {
+        // The exhale. The cloud it opens is centred where the player STOOD, so
+        // the smoker's own position is the honest place to hear it from.
+        say(SM_SFX_SMOKER_ATTACK, mouth, 1.0f);
+      }
+      // A stage was entered this frame, so nothing was walked this frame.
+      continue;
+    }
+
+    // ── a body on the move ────────────────────────────────────────────────
+    if (e.stage != SM_STAGE_APPROACH)
+      continue;
+    const bool kipuchka = e.kind == SM_ENEMY_KIPUCHKA;
+
+    // Only while it is genuinely closing. This is update_kipuchka's own aggro
+    // test, made against the eye rather than the feet because the eye IS the
+    // head can_see() builds: a pest holding still behind a wall is silent, and
+    // one running at the player is not.
+    if (xz_distance(e.position, listener) >
+        (kipuchka ? SM_KIPUCHKA_AGGRO : SM_SMOKER_AGGRO))
+      continue;
+    if (!sm_scene_clear_line(scene, mouth, listener))
+      continue;
+
+    // THE PACE, WITHOUT A NEW FIELD. jitter_phase is the only per-enemy clock
+    // sm_enemy has to spare, and it advances at a fixed rate, so a footfall is
+    // the frame that crosses a multiple of SM_KIPUCHKA_STEP_PHASE. The phase
+    // it crossed FROM is recomputed from this frame's dt rather than
+    // remembered, which is what keeps this stateless; the wrap at 2π falls out
+    // of it for free, since a negative previous phase floors to a different
+    // mark than a small positive one. Each enemy is seeded with its own phase
+    // in spawn(), so a pair never steps in lockstep — which also keeps them
+    // off each other's frame and out of sm_sound.hpp's in-phase summing.
+    //
+    // The smoker walks the same way with its own numbers: it moves at less than
+    // half the pest's speed, so the same ground takes it far longer and its
+    // tread comes out slow and deliberate. Both share the one step sample the
+    // bank has — a dedicated smoker footfall would read better and is on the
+    // list of what is still unrecorded.
+    const float rate = kipuchka ? SM_KIPUCHKA_WEAVE_RATE : SM_SMOKER_ORBIT_RATE;
+    const float mark = rate * SM_KIPUCHKA_STEP_DISTANCE /
+                       (kipuchka ? SM_KIPUCHKA_SPEED : SM_SMOKER_SPEED);
+    const float previous = e.jitter_phase - rate * dt;
+    if (std::floor(e.jitter_phase / mark) == std::floor(previous / mark))
+      continue;
+
+    // From the feet, this one.
+    say(SM_SFX_KIPUCHKA_STEP, e.position,
+        kipuchka ? SM_KIPUCHKA_STEP_GAIN : SM_KIPUCHKA_STEP_GAIN * 0.8f);
+  }
+}
+
 int sm_enemies::damage_sphere(rv_vec3 centre, float radius, int damage,
                               rv_vec3 knockback, sm_feel &feel) {
   int hits = 0;
@@ -724,8 +894,10 @@ int sm_enemies::damage_sphere(rv_vec3 centre, float radius, int damage,
       begin_dying(e, clouds_, i);
   }
 
-  // Hitstop and shake, on the frame of the flash. With no audio these three
-  // are the entire impact.
+  // Hitstop and shake, on the frame of the flash. NO CUE: the brick is the
+  // only thing that calls this, and sm_combat already fires its impact at the
+  // point of contact, where it has the listener to pan against. A second
+  // sample here would be the same event twice, summing in phase.
   if (hits > 0)
     feel.impact(SM_HITSTOP_HEAVY, SM_SHAKE_IMPACT);
   return hits;
@@ -741,6 +913,7 @@ int sm_enemies::damage_arc(rv_vec3 origin, rv_vec3 forward, float range,
       std::cos(clampf(half_arc_degrees, 0.0f, 180.0f) * SM_PI / 180.0f);
 
   int hits = 0;
+  rv_vec3 contact{}; // the first body the arc caught, for the cue below
   for (std::size_t i = 0; i < enemies_.size(); ++i) {
     sm_enemy &e = enemies_[i];
     if (!is_target(e))
@@ -763,13 +936,21 @@ int sm_enemies::damage_arc(rv_vec3 origin, rv_vec3 forward, float range,
 
     e.hp -= damage;
     e.hurt_flash = SM_HURT_FLASH_TIME;
+    if (hits == 0)
+      contact = chest_of(e);
     ++hits;
     if (e.hp <= 0)
       begin_dying(e, clouds_, i);
   }
 
-  if (hits > 0)
+  if (hits > 0) {
     feel.impact(SM_HITSTOP_LIGHT, SM_SHAKE_IMPACT);
+    // ONE cue, however many bodies the arc caught: this is the pipe landing,
+    // not each enemy answering it. `origin` is the eye and `forward` is where
+    // it is looking, so the hit is panned at the first body the swing found —
+    // catching something off to one side is heard off to that side.
+    cue_at(feel, SM_SFX_PIPE_HIT, contact, origin, forward, 1.0f);
+  }
   return hits;
 }
 

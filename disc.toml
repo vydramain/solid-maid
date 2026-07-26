@@ -22,6 +22,14 @@ sources = ["src/*.cpp"]
 # stipple either way, and 16 entries dither it as well as 256 would. One format
 # for the whole disc also keeps the darkening ramp to one code path: six palettes
 # derived from the tier-0 one, 32 bytes each.
+# Sound. The console takes naked sample bytes — rv_ca::sound_asset_write is
+# handed a pointer and a length — and the toolchain has no audio baker, so these
+# ship as headerless raw S16LE mono at 44 100 Hz and are copied in verbatim.
+# tools/prep_audio.py produces them from assets/sound/; the .wav beside each one
+# is the editable twin and is deliberately NOT packed.
+[assets]
+files = ["assets/snd/*.pcm"]
+
 [textures]
 files = ["assets/tex/*.png"]
 format = "idx4"

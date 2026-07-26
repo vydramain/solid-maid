@@ -106,6 +106,10 @@ inline constexpr float SM_AIM_ASSIST_GRAVITY = 2.1f; // rad/s pull toward centre
 inline constexpr float SM_AIM_ASSIST_SLOWDOWN =
     0.55f; // look rate scale over a target
 
+// One pace. Matched to the bob so the footfall and the camera agree: at walking
+// speed this is about 2.7 steps a second, which is a tired man in a hurry.
+inline constexpr float SM_STEP_STRIDE = 0.95f;
+
 // Head bob: subtle, tied to footfall (docs/gameplay.md §2).
 inline constexpr float SM_BOB_FREQUENCY = 8.6f;   // rad/s at walk speed
 inline constexpr float SM_BOB_AMPLITUDE = 0.035f; // metres
@@ -200,6 +204,14 @@ inline constexpr int SM_ASSEMBLY_ESCALATION_STEP =
 // Long enough for the finished lamppost to ride the conveyor out of the hall
 // and for the digit to flip where the player can see it happen.
 inline constexpr float SM_BOARD_CLACK_HOLD = 2.8f;
+
+// After the lamppost is finished the shift ends on a clock rather than on a
+// walk back to the door: the count is put on screen and then the fade carries
+// him home. NOTE this is the one place the number appears outside the factory
+// board, which docs/mechanics.md otherwise forbids — an explicit, requested
+// departure from "the count reaches the player only through the board, the
+// street lighting, and the apartment".
+inline constexpr float SM_SHIFT_END_HOLD = 5.0f;
 
 // ── transitions
 // ───────────────────────────────────────────────────────────────

@@ -25,6 +25,7 @@
 #include "sm_input.hpp"
 #include "sm_player.hpp"
 #include "sm_scene.hpp"
+#include "sm_sound.hpp"
 #include "sm_state.hpp"
 #include "sm_ui.hpp"
 
@@ -84,7 +85,8 @@ private:
 
 class sm_game {
 public:
-  void initialize(rv_pdk::rv_pdko &pdk, sm_assets &assets, sm_gfx &gfx);
+  void initialize(rv_pdk::rv_pdko &pdk, sm_assets &assets, sm_gfx &gfx,
+                  sm_sound &sound);
   void update(const sm_input &input, float dt);
   void render();
   void shutdown();
@@ -110,6 +112,7 @@ private:
 
   rv_pdk::rv_pdko *pdk_ = nullptr;
   sm_assets *assets_ = nullptr;
+  sm_sound *sound_ = nullptr;
   sm_gfx *gfx_ = nullptr;
 
   sm_countdown state_{};
@@ -135,6 +138,8 @@ private:
   float assembly_interrupt_flash_ = 0.0f;
   bool assembly_done_ = false;
   float board_clack_ = 0.0f;
+  // Seconds the end-of-shift card stays up before the fade home.
+  float shift_end_ = 0.0f;
   bool return_open_ = false;
   bool escalation_released_ = false;
 
@@ -156,6 +161,11 @@ private:
   float restart_hold_ = 0.0f;
   bool release_ = false;
   bool has_save_ = false;
+  // Footfall, measured in metres walked rather than in seconds, so a player
+  // scraping along a wall does not keep marching on the spot.
+  rv_pdklib::rv_vec3 step_from_{};
+  float step_distance_ = 0.0f;
+
   float last_dt_ = 0.0f;
   sm_input last_input_{};
   const rv_pdk::rv_istate *injected_ = nullptr;

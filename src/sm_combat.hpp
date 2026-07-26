@@ -4,10 +4,11 @@
 // stacked well" — hitstop of 0.06-0.1 s, camera micro-shake, and (in a build
 // with audio) a loud sample, all landing on the same frame.
 //
-// AUDIO IS OUT OF SCOPE for this MVP and is not stubbed here: no hooks, no
-// event system, no silent player. What the design asks audio to carry, the
-// visual channel carries instead — an impact is confirmed by hitstop, shake,
-// the enemy's hurt flash and its knockback, all of which are visible.
+// AUDIO IS AN ADDITION HERE, NEVER A SUBSTITUTION. The visual channel still
+// carries every confirmation on its own — hitstop, shake, the enemy's hurt
+// flash and its knockback — because sm_feel::cue() is a no-op when no bank
+// loaded, and the game has to stay finishable in silence. Sound is the third
+// channel on top, not the one the others were waiting for.
 #pragma once
 
 #include <cstdint>
@@ -17,6 +18,7 @@
 
 #include "sm_common.hpp"
 #include "sm_gfx.hpp"
+#include "sm_sound.hpp"
 
 namespace solidmaid {
 
@@ -42,6 +44,13 @@ struct sm_feel {
   // is what lets every call inside one frame agree and a replayed run
   // reproduce. mutable so that read can stay const.
   mutable uint32_t noise = 0x1234567u;
+
+  // The THIRD feedback channel, beside hitstop and shake. It lives here rather
+  // than being threaded through every update() because sm_feel is already the
+  // "how this lands" object every system with something to confirm receives —
+  // and a hit that is felt, seen and heard is one event, not three.
+  sm_sound *sound = nullptr;
+  void cue(sm_sfx id, float gain = 1.0f, float pan = 0.0f);
 
   void impact(float hitstop_seconds, float shake_amount);
   void update(float dt);

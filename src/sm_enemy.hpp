@@ -108,6 +108,18 @@ private:
   std::vector<sm_cloud> clouds_;
 };
 
+// The enemies' own voices: telegraphs, footfalls and deaths, read off the state
+// sm_enemies::update() just produced.
+//
+// It is a free function rather than a member because sm_enemies::update() is
+// handed no sm_feel — enemies report damage as DATA and the player decides what
+// it costs, which is a separation worth keeping. So the observer runs one step
+// later, from sm_combat::update(), where a feel is already in hand and every
+// kill for this frame has been filed.
+void sm_enemy_audio(const sm_enemies &enemies, const sm_scene &scene,
+                    rv_pdklib::rv_vec3 listener, rv_pdklib::rv_vec3 forward,
+                    float dt, sm_feel &feel);
+
 // ── encounters
 // ────────────────────────────────────────────────────────────────
 //

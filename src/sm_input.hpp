@@ -46,6 +46,12 @@ struct sm_input {
   bool hand_right_released = false; // falling edge
   bool hand_left_released = false;
 
+  // A / cross and B / circle, as themselves. The two hands are the triggers and
+  // only the triggers (docs/gameplay.md §4); these exist for the menus, where a
+  // face button is what a player reaches for.
+  bool confirm_pressed = false;
+  bool cancel_pressed = false;
+
   bool menu_pressed = false;
   bool menu_held = false;     // level, for the hold-to-restart
   bool view_pressed = false;  // rising edge
