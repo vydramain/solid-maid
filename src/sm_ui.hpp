@@ -64,9 +64,11 @@ void sm_ui_draw_knockout(sm_gfx &gfx, const sm_assets &assets, float amount);
 // board's own lettering; this is the screen that follows it.
 void sm_ui_draw_ending(sm_gfx &gfx, const sm_assets &assets, float amount);
 
-// The title card the disc opens on. Deliberately wordless about the countdown.
+// The title card the disc opens on. `shifts_left` is the countdown as the
+// player would resume it — sm_countdown::board_digit(), so it is clamped at
+// zero and never disagrees with the factory board.
 void sm_ui_draw_title(sm_gfx &gfx, const sm_assets &assets, float pulse,
-                      bool has_save);
+                      bool has_save, int shifts_left);
 
 // Development only, behind the VIEW button: frame budget, active enemies, tier,
 // phase, and the count of textures that failed to load.

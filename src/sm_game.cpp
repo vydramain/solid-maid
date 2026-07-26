@@ -1022,7 +1022,8 @@ void sm_game::render() {
   gfx_->begin(view, scene_.clear_colour, scene_.far_plane);
 
   if (mode_ == SM_MODE_TITLE) {
-    sm_ui_draw_title(*gfx_, *assets_, title_pulse_, has_save_);
+    sm_ui_draw_title(*gfx_, *assets_, title_pulse_, has_save_,
+                     state_.board_digit());
     gfx_->end();
     return;
   }

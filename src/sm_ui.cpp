@@ -6,9 +6,11 @@
 // cooldown, interaction prompt. It NEVER shows the countdown. The only number
 // in the game is painted on a wall in the factory."
 //
-// There is therefore no shift counter, no timer, no "Day 3 of 5", and no mirror
-// of the board in this file — except inside sm_ui_draw_debug(), which is a
-// development tool behind the VIEW button and off by default.
+// That rule still governs the in-game HUD: sm_ui_draw_hud() has no counter, no
+// timer, and no mirror of the board. Two screens outside it do show the count —
+// sm_ui_draw_title(), by explicit design decision (2026-07-26), and
+// sm_ui_draw_debug(), a development tool behind the VIEW button and off by
+// default. Neither number may migrate into sm_ui_draw_hud().
 //
 // ── COSTS ────────────────────────────────────────────────────────────────────
 //
@@ -548,19 +550,23 @@ void sm_ui_draw_ending(sm_gfx &gfx, const sm_assets &, float amount) {
 }
 
 void sm_ui_draw_title(sm_gfx &gfx, const sm_assets &assets, float pulse,
-                      bool has_save) {
+                      bool has_save, int shifts_left) {
   const int w = gfx.width();
   const int h = gfx.height();
 
   gfx.sprite(0, 0, w, h, SM_COL_TITLE_BG, SM_DEPTH_HUD);
 
-  // The title says what the game is called and nothing else. There is no
-  // "5 shifts", no chapter, no progress, and no hint that anything is being
-  // counted — the player is meant to meet the board cold.
-  sm_text_draw_centred(gfx, assets, w / 2, 62, "АЛКОЛДУН ВАСИЛИУСАВИЧ",
-                       SM_COL_TITLE_BG, 3, SM_DEPTH_HUD_TEXT);
-  sm_text_draw_centred(gfx, assets, w / 2, 100, "Осталось смен: 5",
-                       SM_COL_TITLE_BG, 1, SM_DEPTH_HUD_TEXT);
+  // The title says what the game is called, and under it how much of the run is
+  // left. The count is READ, never stored: `shifts_left` arrives as
+  // sm_countdown::board_digit(), so the title and the factory board are the
+  // same number by construction and a resumed run opens on its own figure
+  // rather than on 5.
+  sm_text_draw_centred(gfx, assets, w / 2, 62, "АЛКОЛДУН", SM_COL_TITLE_BG, 3,
+                       SM_DEPTH_HUD_TEXT);
+  char shifts[32];
+  std::snprintf(shifts, sizeof(shifts), "Осталось смен: %d", shifts_left);
+  sm_text_draw_centred(gfx, assets, w / 2, 100, shifts, SM_COL_TITLE_BG, 1,
+                       SM_DEPTH_HUD_TEXT);
 
   // Colour cannot pulse — SAMPLE_TEXTURE would throw the tint away — so the
   // invitation blinks instead, which is what a machine of this era would have
@@ -585,10 +591,11 @@ void sm_ui_draw_title(sm_gfx &gfx, const sm_assets &assets, float pulse,
 
 void sm_ui_draw_debug(sm_gfx &gfx, const sm_assets &assets,
                       const sm_debug_model &model) {
-  // DEVELOPMENT ONLY, behind the VIEW button, off by default. This is the ONE
-  // place shifts_remaining may appear on screen, and it may appear here only
-  // because a build the player sees never opens it. Nothing in this overlay
-  // may migrate into sm_ui_draw_hud().
+  // DEVELOPMENT ONLY, behind the VIEW button, off by default. This is the only
+  // place the RAW shifts_remaining may appear — unclamped, beside the phase and
+  // the assembly step — and it may appear here only because a build the player
+  // sees never opens it. Nothing in this overlay may migrate into
+  // sm_ui_draw_hud().
   char buffer[512];
   std::snprintf(buffer, sizeof(buffer),
                 "PRIM %d/%d DROP %d\n"
