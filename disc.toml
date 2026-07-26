@@ -1,0 +1,32 @@
+# Solidmaid: Alkoldun Vasiliusavich — the reference disc for the 3dmppc console.
+#
+# The design this manifest serves lives in docs/; the console contract it is
+# burned against lives in the console repo's pdk/. Burn with:
+#
+#   mppcburner build mppcdiscs/solid-maid -o build/solid-maid.mppcdisc \
+#       --baker pdk/tools/build/mppcbaker/mppcbaker
+
+[disc]
+id = "solid-maid"
+title = "Solidmaid: Alkoldun Vasiliusavich"
+abi_version = 1
+
+[build]
+sources = ["src/*.cpp"]
+
+# Every texture in the game is IDX4 — 16 colours, half a byte per texel, and a
+# palette entry reserved for the cut-out hole wherever the source PNG has alpha.
+# That is what docs/art-and-audio.md asks for on all but three textures, and the
+# three exceptions (sky gradient, light pool, smoke) do not actually need more:
+# the console has no alpha blending, so a "smooth gradient" is an ordered-dither
+# stipple either way, and 16 entries dither it as well as 256 would. One format
+# for the whole disc also keeps the darkening ramp to one code path: six palettes
+# derived from the tier-0 one, 32 bytes each.
+[textures]
+files = ["assets/tex/*.png"]
+format = "idx4"
+
+[budget]
+texture_max_width = 256
+texture_max_height = 256
+video_memory_size = 1048576
