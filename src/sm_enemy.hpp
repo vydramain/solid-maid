@@ -106,6 +106,14 @@ public:
 private:
   std::vector<sm_enemy> enemies_;
   std::vector<sm_cloud> clouds_;
+
+  // Where the player is heading, measured rather than told. The smoker leads
+  // its exhale by this, and differencing the position it is already handed
+  // keeps the player's velocity out of this class's interface — enemies watch
+  // the player, they are not briefed by them.
+  rv_pdklib::rv_vec3 player_previous_{};
+  rv_pdklib::rv_vec3 player_drift_{};
+  bool player_tracked_ = false;
 };
 
 // The enemies' own voices: telegraphs, footfalls and deaths, read off the state

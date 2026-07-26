@@ -255,15 +255,16 @@ bool sm_gfx::project(rv_vec3 world, float &out_x, float &out_y) const {
 }
 
 void sm_gfx::quad_raw(const rv_vec3 corners[4], const rv_pdk::rv_uv uv[4],
-                      sm_texref texture, rv_pdk::rv_color tint, bool textured) {
+                      sm_texref texture, rv_pdk::rv_color tint, bool textured,
+                      int32_t depth_bias) {
   const rv_pdk::rv_color colours[4] = {tint, tint, tint, tint};
-  emit_surface(corners, colours, uv, texture, textured);
+  emit_surface(corners, colours, uv, texture, textured, depth_bias);
 }
 
 void sm_gfx::emit_surface(const rv_vec3 corners[4],
                           const rv_pdk::rv_color colours[4],
                           const rv_pdk::rv_uv uv[4], sm_texref texture,
-                          bool textured) {
+                          bool textured, int32_t depth_bias) {
   const bool sampling = textured && texture.valid();
   const float limit = conf_.near_plane * 0.999f;
 
@@ -295,7 +296,7 @@ void sm_gfx::emit_surface(const rv_vec3 corners[4],
   if (!crosses) {
     rv_pdk::rv_primitive primitive{};
     primitive.type = rv_pdk::RV_PRIMITIVE_POLYGON;
-    primitive.depth = rv_pdklib::rv_xform_depth_key(clip, 4, conf_);
+    primitive.depth = rv_pdklib::rv_xform_depth_key(clip, 4, conf_) + depth_bias;
 
     rv_pdk::rv_polygon &polygon = primitive.data.polygon;
     fill(polygon);
@@ -338,7 +339,8 @@ void sm_gfx::emit_surface(const rv_vec3 corners[4],
   rv_pdklib::rv_vec4 keys[8];
   for (int i = 0; i < count; ++i)
     keys[i] = kept[i].clip;
-  const int32_t depth = rv_pdklib::rv_xform_depth_key(keys, count, conf_);
+  const int32_t depth =
+      rv_pdklib::rv_xform_depth_key(keys, count, conf_) + depth_bias;
 
   rv_pdk::rv_vertex projected[8];
   for (int i = 0; i < count; ++i) {
@@ -370,7 +372,7 @@ void sm_gfx::emit_surface(const rv_vec3 corners[4],
 }
 
 void sm_gfx::quad(const rv_vec3 corners[4], sm_texref texture, sm_uvrect uv,
-                  rv_pdk::rv_color tint, float tess_metres) {
+                  rv_pdk::rv_color tint, float tess_metres, int32_t depth_bias) {
   const rv_vec3 centre =
       (corners[0] + corners[1] + corners[2] + corners[3]) * 0.25f;
   float radius = 0.0f;
@@ -405,7 +407,7 @@ void sm_gfx::quad(const rv_vec3 corners[4], sm_texref texture, sm_uvrect uv,
           quad_point(corners, s0, t1), quad_point(corners, s1, t1)};
       const rv_pdk::rv_uv cell_uv[4] = {uv_at(uv, s0, t0), uv_at(uv, s1, t0),
                                         uv_at(uv, s0, t1), uv_at(uv, s1, t1)};
-      quad_raw(cell, cell_uv, texture, tint, true);
+      quad_raw(cell, cell_uv, texture, tint, true, depth_bias);
     }
   }
 }
@@ -495,8 +497,11 @@ void sm_gfx::decal_ground(rv_vec3 centre, float half_size, float y,
   if (!visible(rv_vec3{centre.x, y, centre.z}, half_size * 1.5f))
     return;
 
-  // Lifted off the floor: one ordering-table key per polygon means a coplanar
-  // decal and its floor land in the same bucket and swap frame to frame.
+  // Lifted off the floor AND lifted in the ordering table. The 2 cm is what
+  // keeps the decal out of the floor geometrically; the bias below is what
+  // keeps it out of the floor's BUCKET, and that is the half that was actually
+  // causing the flicker — one key per polygon, quantised, so two surfaces this
+  // close resolve by whichever way the rounding fell that frame.
   const float h = y + 0.02f;
   const rv_vec3 corners[4] = {
       rv_vec3{centre.x - half_size, h, centre.z + half_size},
@@ -506,7 +511,7 @@ void sm_gfx::decal_ground(rv_vec3 centre, float half_size, float y,
   const rv_pdk::rv_uv cell_uv[4] = {
       uv_at(uv, 0.0f, 0.0f), uv_at(uv, 1.0f, 0.0f), uv_at(uv, 0.0f, 1.0f),
       uv_at(uv, 1.0f, 1.0f)};
-  quad_raw(corners, cell_uv, texture, tint, true);
+  quad_raw(corners, cell_uv, texture, tint, true, SM_DEPTH_BIAS_DECAL);
 }
 
 void sm_gfx::line3(rv_vec3 a, rv_vec3 b, rv_pdk::rv_color colour) {

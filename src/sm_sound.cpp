@@ -41,6 +41,11 @@ constexpr int64_t SM_VOICE_MUSIC_A = 0;
 constexpr int64_t SM_VOICE_MUSIC_B = 1;
 constexpr int64_t SM_EFFECT_FIRST = 2;
 constexpr int64_t SM_EFFECT_COUNT = 12;
+// One voice each for the continuous beds, out of the block the one-shots rotate
+// through. A stolen voice is survivable for a hit — the next one re-fires it a
+// moment later — but a bed that gets stolen simply stops and never comes back,
+// because nothing re-arms it until the game next changes its mind.
+constexpr int64_t SM_VOICE_LOOP_FIRST = 14;
 
 // Per-voice levels. The SAMPLES already carry the balance — effects were
 // normalised to -2 dBFS and music to -8, half the amplitude — so these are
@@ -52,6 +57,21 @@ struct sm_sfx_desc {
   const char *resource;
 };
 
+// THE BANK IS ONE BANK, AND IT NEVER MOVES.
+//
+// Per-area banks were the obvious way to fit the factory's two loops, and they
+// are not possible on this console: rv_pcvoice only leaves the release phase
+// inside the MIXER's advance(), so a voice that has played anything stays busy
+// until the audio device pumps — and sound_asset_free() refuses a region a busy
+// voice points at (RV_ERR_BUSY). Headless runs never pump at all, so a freed
+// bank is a bank that is never freed and never comes back.
+//
+// So nothing is ever released. The 40 KiB that per-area loading would have
+// bought is taken from the FOOTSTEPS instead, which is where the duplication
+// actually was: three surfaces x two variants is six samples of which only two
+// can ever be wanted at once. They share two slots sized to the largest pair
+// (the concrete one), rewritten on the area change — the same rewrite-in-place
+// trick the music bars already use, and the only one the hardware allows.
 constexpr sm_sfx_desc SM_EFFECTS[SM_SFX_COUNT] = {
     {"sfx_ui_prompt.pcm"},        {"sfx_pickup.pcm"},
     {"sfx_player_hurt.pcm"},      {"sfx_player_death.pcm"},
@@ -69,7 +89,44 @@ constexpr sm_sfx_desc SM_EFFECTS[SM_SFX_COUNT] = {
     {"sfx_step_lino_a.pcm"},      {"sfx_step_lino_b.pcm"},
     {"sfx_step_asphalt_a.pcm"},   {"sfx_step_asphalt_b.pcm"},
     {"sfx_step_concrete_a.pcm"},  {"sfx_step_concrete_b.pcm"},
+
+    {"sfx_loop_conveyor.pcm"},    {"sfx_loop_assembly.pcm"},
 };
+
+// The six samples that share two slots, by area. Index 0 is the A variant.
+constexpr sm_sfx SM_STEPS_OF_AREA[3][2] = {
+    {SM_SFX_STEP_LINO_A, SM_SFX_STEP_LINO_B},
+    {SM_SFX_STEP_ASPHALT_A, SM_SFX_STEP_ASPHALT_B},
+    {SM_SFX_STEP_CONCRETE_A, SM_SFX_STEP_CONCRETE_B},
+};
+
+int surface_of(sm_song area) {
+  switch (area) {
+  case SM_SONG_HOME:
+    return 0;
+  case SM_SONG_STREET:
+    return 1;
+  case SM_SONG_FACTORY:
+    return 2;
+  default:
+    return -1;
+  }
+}
+
+bool is_step(int id) {
+  return id >= SM_SFX_STEP_LINO_A && id <= SM_SFX_STEP_CONCRETE_B;
+}
+
+// Where each bed sits under everything else. The conveyor is the room: it runs
+// the whole time the player is in the hall, so it is set at 30 % of the effect
+// level, which puts it UNDER the melody (0.30 x 22000 = 6600 against the music's
+// 10000) and well under any hit. The assembly loop is the player's own hands and
+// is allowed to be louder — but not loud enough to sit on a kipuchka windup,
+// which is the one telegraph a player is listening for while their back is
+// turned at the bench.
+constexpr float SM_LOOP_GAIN[SM_LOOP_COUNT] = {0.30f, 0.55f};
+constexpr sm_sfx SM_LOOP_SAMPLE[SM_LOOP_COUNT] = {SM_SFX_LOOP_CONVEYOR,
+                                                  SM_SFX_LOOP_ASSEMBLY};
 
 // The melodies, bar by bar, in playing order. They live on the medium — which
 // has no size ceiling (specs.md) — and reach sound RAM two at a time.
@@ -143,16 +200,61 @@ bool sm_sound::upload(const char *resource, int64_t address, int64_t capacity) {
 int64_t sm_sound::load(rv_pdk::rv_pdko &pdk) {
   pdk_ = &pdk;
   ca_ = pdk.ca();
+  rv_pdk::rv_cd *cd = pdk.cd();
   if (!ca_)
     return rv_pdk::RV_ERR_INVAL;
 
-  // Effects first, so they sit at the bottom of the pool and the music slots —
-  // the only regions ever rewritten — live above them. Nothing here is freed
-  // during play, so the pool never fragments.
+  // MUSIC SLOTS FIRST, then the step slots, then the fixed samples. Order is
+  // not arbitrary: the rewritable regions are the ones whose CONTENTS change,
+  // and putting them at the bottom keeps the pool's one allocation pass in the
+  // order the pool grows. Nothing here is ever freed, so it never fragments.
+  for (int i = 0; i < 2; ++i) {
+    const int64_t address = ca_->sound_asset_malloc(SM_BAR_BYTES);
+    if (address < 0) {
+      ++missing_;
+      continue;
+    }
+    slots_[i].address = address;
+    slots_[i].voice = (i == 0) ? SM_VOICE_MUSIC_A : SM_VOICE_MUSIC_B;
+    sound_bytes_ += SM_BAR_BYTES;
+  }
+
+  // The two shared footstep slots, each sized to the LARGEST of the three
+  // surfaces that will be written into it. Measured off the medium rather than
+  // hard-coded: a re-recorded footstep must not silently overflow the slot the
+  // one before it fitted in.
+  for (int variant = 0; variant < 2; ++variant) {
+    int64_t largest = 0;
+    for (int surface = 0; surface < 3; ++surface) {
+      const sm_sfx id = SM_STEPS_OF_AREA[surface][variant];
+      if (!cd)
+        break;
+      const int64_t handle = cd->asset_open(SM_EFFECTS[id].resource);
+      if (handle < 0)
+        continue;
+      const int64_t size = cd->asset_size(handle);
+      if (size > largest)
+        largest = size;
+    }
+    if (largest <= 0) {
+      ++missing_;
+      continue;
+    }
+    const int64_t address = ca_->sound_asset_malloc(largest);
+    if (address < 0) {
+      ++missing_;
+      continue;
+    }
+    step_slot_[variant] = address;
+    step_slot_bytes_[variant] = largest;
+    sound_bytes_ += largest;
+  }
+
+  // Everything that is not a footstep, at its own size, resident for the whole
+  // run.
   for (int i = 0; i < SM_SFX_COUNT; ++i) {
-    rv_pdk::rv_cd *cd = pdk.cd();
-    if (!cd)
-      break;
+    if (is_step(i) || !cd)
+      continue;
     const int64_t handle = cd->asset_open(SM_EFFECTS[i].resource);
     if (handle < 0) {
       ++missing_;
@@ -177,31 +279,59 @@ int64_t sm_sound::load(rv_pdk::rv_pdko &pdk) {
     sound_bytes_ += size;
   }
 
-  // Two bar-length slots, rewritten in place for the rest of the run.
-  for (int i = 0; i < 2; ++i) {
-    const int64_t address = ca_->sound_asset_malloc(SM_BAR_BYTES);
-    if (address < 0) {
-      ++missing_;
-      continue;
-    }
-    slots_[i].address = address;
-    slots_[i].voice = (i == 0) ? SM_VOICE_MUSIC_A : SM_VOICE_MUSIC_B;
-    sound_bytes_ += SM_BAR_BYTES;
-  }
-
   return rv_pdk::RV_OK;
+}
+
+void sm_sound::set_area(sm_song area) {
+  if (!ca_ || area == area_)
+    return;
+  const int surface = surface_of(area);
+  if (surface < 0)
+    return;
+  area_ = area;
+
+  // Point every footstep id at nothing, then hand this surface's pair the two
+  // slots. An id that is not resident resolves to address 0 and play() drops
+  // it, which is what keeps a lino step from coming out of a factory floor if
+  // something ever asks for one by name.
+  for (int surf = 0; surf < 3; ++surf)
+    for (int variant = 0; variant < 2; ++variant)
+      effects_[SM_STEPS_OF_AREA[surf][variant]] = 0;
+
+  for (int variant = 0; variant < 2; ++variant) {
+    if (step_slot_[variant] == 0)
+      continue;
+    const sm_sfx id = SM_STEPS_OF_AREA[surface][variant];
+    // sound_asset_write takes the SPU lock, so rewriting a region a footstep
+    // voice is still reading is safe rather than a race. The worst it can do is
+    // change the surface halfway through one step, during a fade.
+    if (upload(SM_EFFECTS[id].resource, step_slot_[variant],
+               step_slot_bytes_[variant]))
+      effects_[id] = step_slot_[variant];
+    else
+      ++missing_;
+  }
 }
 
 void sm_sound::unload() {
   if (!ca_)
     return;
   stop_song();
+  for (int i = 0; i < SM_LOOP_COUNT; ++i)
+    set_loop(static_cast<sm_loop_id>(i), false);
 
   for (int i = 0; i < SM_SFX_COUNT; ++i) {
     if (effects_[i] != 0)
       ca_->sound_asset_free(effects_[i]);
     effects_[i] = 0;
   }
+  for (int i = 0; i < 2; ++i) {
+    if (step_slot_[i] != 0)
+      ca_->sound_asset_free(step_slot_[i]);
+    step_slot_[i] = 0;
+    step_slot_bytes_[i] = 0;
+  }
+  area_ = SM_SONG_NONE;
   for (int i = 0; i < 2; ++i) {
     if (slots_[i].address != 0)
       ca_->sound_asset_free(slots_[i].address);
@@ -275,6 +405,50 @@ const char *sm_sound::name_of(sm_sfx id) {
   if (id < 0 || id >= SM_SFX_COUNT)
     return "?";
   return SM_EFFECTS[id].resource;
+}
+
+bool sm_sound::looping(sm_loop_id id) const {
+  return (id >= 0 && id < SM_LOOP_COUNT) ? loop_on_[id] : false;
+}
+
+void sm_sound::set_loop(sm_loop_id id, bool on) {
+  if (!ca_ || id < 0 || id >= SM_LOOP_COUNT)
+    return;
+  if (loop_on_[id] == on)
+    return;
+
+  const int64_t voice = 1LL << (SM_VOICE_LOOP_FIRST + id);
+  if (!on) {
+    ca_->voice_stop(voice);
+    loop_on_[id] = false;
+    return;
+  }
+
+  const int64_t address = effects_[SM_LOOP_SAMPLE[id]];
+  if (address == 0)
+    return; // the sample never made it into sound RAM; stay silent, stay quiet
+
+  rv_pdk::rv_voice_conf conf{};
+  conf.voice = voice;
+  // THE WHOLE SAMPLE, FOREVER. rv_loop has no loop points (pdk/ca/rv_ca.hpp),
+  // so a bed has to meet itself — which is why these two ship untrimmed and
+  // unfaded: prep_audio.py would otherwise put a dip in the seam once a second.
+  conf.loop_type = rv_pdk::rv_loop::forever;
+  conf.sample_address = address;
+  conf.ar = 0;
+  conf.dr = 0;
+  conf.sr = 0;
+  conf.rr = 0;
+  conf.sl = 32767;
+  conf.volume = scale_volume(SM_VOLUME_EFFECT, SM_LOOP_GAIN[id]);
+  conf.volume_l = 32767;
+  conf.volume_r = 32767;
+
+  if (ca_->voice_setup(&conf) < 0)
+    return;
+  ca_->voice_play(voice);
+  ++fired_[SM_LOOP_SAMPLE[id]];
+  loop_on_[id] = true;
 }
 
 void sm_sound::play(sm_sfx id, float gain, float pan) {
@@ -356,7 +530,10 @@ void sm_sound::stop_song() {
 }
 
 void sm_sound::update(float dt) {
-  if (!ca_ || !started_ || song_ == SM_SONG_NONE || dt <= 0.0f)
+  if (!ca_)
+    return;
+
+  if (!started_ || song_ == SM_SONG_NONE || dt <= 0.0f)
     return;
 
   int count = 0;

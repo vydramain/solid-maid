@@ -51,6 +51,12 @@ struct sm_input {
   // face button is what a player reaches for.
   bool confirm_pressed = false;
   bool cancel_pressed = false;
+  // The LEVEL of A, not its edge. The bench is the one place in the game where
+  // a face button is held rather than tapped, and it is a face button precisely
+  // because the alternative was a trigger: work at the bench is not a swing and
+  // not a throw, and putting it on the same finger as the weapons made every
+  // interrupted assembly look like a misfired attack.
+  bool confirm_held = false;
 
   bool menu_pressed = false;
   bool menu_held = false;     // level, for the hold-to-restart

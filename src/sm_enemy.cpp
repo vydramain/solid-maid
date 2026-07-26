@@ -417,9 +417,35 @@ void update_kipuchka(sm_enemy &e, float dt, const sm_scene &scene,
 //
 // It is pressure, not a chaser: it never closes past its standoff, and it keeps
 // strafing all through its cooldown so the denied ground keeps moving.
+// Where to centre an exhale committed this frame: ahead of the player along
+// their own drift, but never through a wall. The retreat is coarse on purpose —
+// three tries and then the feet — because the only thing that must never happen
+// is a cloud opening on the far side of a facade, where the ring is invisible
+// and the damage is not.
+rv_vec3 exhale_centre(const sm_scene &scene, rv_vec3 player_position,
+                      rv_vec3 drift) {
+  const float speed = xz_length(drift);
+  if (speed < 0.25f)
+    return player_position; // standing still: the feet ARE where they'll be
+  const rv_vec3 heading = drift * (1.0f / speed);
+  float lead = speed * SM_CLOUD_LEAD_TIME;
+  if (lead > SM_CLOUD_LEAD_MAX)
+    lead = SM_CLOUD_LEAD_MAX;
+
+  const rv_vec3 head = player_position + rv_vec3{0.0f, SM_EYE_HEIGHT, 0.0f};
+  for (int attempt = 0; attempt < 3; ++attempt) {
+    const rv_vec3 point = player_position + heading * lead;
+    if (sm_scene_clear_line(scene, head,
+                            point + rv_vec3{0.0f, SM_EYE_HEIGHT, 0.0f}))
+      return point;
+    lead *= 0.5f;
+  }
+  return player_position;
+}
+
 void update_smoker(sm_enemy &e, std::size_t index, float dt,
                    const sm_scene &scene, rv_vec3 player_position,
-                   std::vector<sm_cloud> &clouds) {
+                   rv_vec3 player_drift, std::vector<sm_cloud> &clouds) {
   const float distance = xz_distance(e.position, player_position);
   const bool aggroed = distance <= SM_SMOKER_AGGRO;
   const bool sighted = aggroed && can_see(scene, e, player_position);
@@ -458,7 +484,8 @@ void update_smoker(sm_enemy &e, std::size_t index, float dt,
     // distance it means to hold. Committing from across the street would
     // burn a whole 0.85 s + 0.7 s + 3.4 s cycle on ground the player was
     // never going to be standing on.
-    const bool in_reach = distance <= SM_SMOKER_STANDOFF + SM_CLOUD_RADIUS;
+    const bool in_reach =
+        distance <= SM_SMOKER_STANDOFF + SM_CLOUD_RADIUS + SM_CLOUD_COMMIT_BONUS;
     if (sighted && in_reach && e.grace <= 0.0f && e.cooldown <= 0.0f) {
       e.stage = SM_STAGE_WINDUP;
       e.stage_time = 0.0f;
@@ -466,11 +493,13 @@ void update_smoker(sm_enemy &e, std::size_t index, float dt,
 
       // The cloud is filed NOW, with a negative age. Until that age
       // reaches zero it is the pre-warm ring and nothing else: it does
-      // not grow and it does not tick. Its centre is where the player
-      // stood at the moment of commitment — the player can walk out of
-      // it, and the ring is an honest promise of where it will be.
+      // not grow and it does not tick. Its centre is where the player is
+      // HEADED at the moment of commitment, so the ring opens in front of
+      // them where they can see it — and the ring is still an honest
+      // promise, because the lead is applied here, once, and the drawing
+      // reads the same centre the damage does.
       sm_cloud cloud{};
-      cloud.centre = player_position;
+      cloud.centre = exhale_centre(scene, player_position, player_drift);
       // One dt of head start, because the cloud loop runs after this
       // one and would otherwise ignite a frame before the exhale pose.
       cloud.age = -SM_SMOKER_WINDUP - dt;
@@ -614,6 +643,9 @@ rv_vec3 spawn_point(const sm_scene &scene, int index) {
 // ────────────────────────────────────────────────────────────────
 
 void sm_enemies::reset() {
+  player_previous_ = rv_vec3{0.0f, 0.0f, 0.0f};
+  player_drift_ = rv_vec3{0.0f, 0.0f, 0.0f};
+  player_tracked_ = false;
   enemies_.clear();
   clouds_.clear();
 }
@@ -669,6 +701,23 @@ void sm_enemies::update(float dt, const sm_scene &scene,
   // empty rather than accumulating across frames in the caller's vector.
   out_damage.clear();
 
+  // The player's drift, measured. Smoothed hard because the smoker commits on
+  // ONE frame and a raw per-frame difference is noisy enough — a wall slide, a
+  // strafe reversal — to aim an exhale at ground the player never meant to go
+  // to. An area change teleports the player, so the first frame after a reset
+  // seeds instead of measuring, and anything faster than a sprint is discarded
+  // as exactly that teleport.
+  if (dt > 1e-5f) {
+    const rv_vec3 delta = player_position - player_previous_;
+    rv_vec3 velocity{delta.x / dt, 0.0f, delta.z / dt};
+    if (!player_tracked_ || xz_length(velocity) > SM_PLAYER_WALK_SPEED * 3.0f)
+      velocity = rv_vec3{0.0f, 0.0f, 0.0f};
+    const float blend = 0.25f;
+    player_drift_ = player_drift_ * (1.0f - blend) + velocity * blend;
+    player_previous_ = player_position;
+    player_tracked_ = true;
+  }
+
   for (std::size_t i = 0; i < enemies_.size(); ++i) {
     sm_enemy &e = enemies_[i];
     if (!e.alive)
@@ -700,7 +749,7 @@ void sm_enemies::update(float dt, const sm_scene &scene,
       e.jitter_phase -= 2.0f * SM_PI;
 
     if (e.kind == SM_ENEMY_SMOKER) {
-      update_smoker(e, i, dt, scene, player_position, clouds_);
+      update_smoker(e, i, dt, scene, player_position, player_drift_, clouds_);
     } else {
       update_kipuchka(e, dt, scene, player_position, out_damage);
     }
@@ -1067,9 +1116,11 @@ void sm_enemies::render(sm_gfx &gfx, const sm_assets &assets, int tier) const {
     if (cloud.age < 0.0f) {
       // ── the pre-warm ring ─────────────────────────────────────────────
       // Drawn at the cloud's exact centre and the exact SM_CLOUD_RADIUS.
-      // It is never fudged, never lead, never shrunk: the whole difficulty
-      // curve depends on the player being told the truth about the extent
-      // and then being made to judge it against unlit ground.
+      // Never fudged, never shrunk, and never lead HERE: the lead was
+      // applied once, when the smoker committed, and this reads back the
+      // same centre the damage does. The whole difficulty curve depends on
+      // the player being told the truth about the extent and then being
+      // made to judge it against unlit ground.
       const float charge =
           clampf(1.0f + cloud.age / SM_SMOKER_WINDUP, 0.0f, 1.0f);
       const rv_pdk::rv_color hot =

@@ -64,6 +64,7 @@ private:
 
   int hp_ = SM_PLAYER_MAX_HP;
   float iframes_ = 0.0f;
+  float stagger_ = 0.0f;
   float hurt_flash_ = 0.0f;
 
   float bob_phase_ = 0.0f;

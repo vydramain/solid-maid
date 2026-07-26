@@ -59,7 +59,21 @@ enum sm_sfx : int {
   SM_SFX_STEP_CONCRETE_A,
   SM_SFX_STEP_CONCRETE_B,
 
+  // The factory's two continuous loops. They are listed here because they load
+  // and are audited like every other sample, but they are never fired by
+  // play(): a one-shot voice would restart them every time, and what they need
+  // is rv_loop::forever on a voice of their own. set_loop() is their only door.
+  SM_SFX_LOOP_CONVEYOR,
+  SM_SFX_LOOP_ASSEMBLY,
+
   SM_SFX_COUNT,
+};
+
+// The two continuous voices, by what they are rather than by index.
+enum sm_loop_id : int {
+  SM_LOOP_CONVEYOR = 0,
+  SM_LOOP_ASSEMBLY,
+  SM_LOOP_COUNT,
 };
 
 // Which melody is running. One per area; the final lap runs none.
@@ -72,7 +86,9 @@ enum sm_song : int {
 
 class sm_sound {
 public:
-  // Uploads every effect and reserves the two music slots. A missing sample is
+  // Uploads every sample that is resident for the whole run, and reserves the
+  // regions that are rewritten during it: two for the music bars, two for the
+  // footstep pair of whatever area the player is standing in. A missing sample is
   // counted, never fatal: the game is designed to be finishable in silence
   // (every telegraph and every confirmation has a visual half), so a broken
   // audio bank must not stop somebody playing.
@@ -80,6 +96,12 @@ public:
   void unload();
 
   bool ready() const { return ca_ != nullptr; }
+
+  // Put this area's footsteps into the two shared slots. Immediate: it is a
+  // copy into regions that already exist, not an allocation, so there is no
+  // waiting on the mixer and nothing that can fail for lack of room.
+  void set_area(sm_song area);
+  sm_song area() const { return area_; }
   int missing() const { return missing_; }
   int64_t sound_bytes() const { return sound_bytes_; }
 
@@ -91,6 +113,12 @@ public:
   // A footstep on the surface of `song`'s area, alternating the two authored
   // variants. Silent if the area has no floor sound.
   void footstep(sm_song area, float gain = 1.0f);
+
+  // A continuous bed, on or off. Idempotent: calling it every frame with the
+  // same answer does nothing, which is what lets the game state it as a fact
+  // ("the conveyor runs in the factory") instead of tracking edges.
+  void set_loop(sm_loop_id id, bool on);
+  bool looping(sm_loop_id id) const;
 
   // Start / stop the melody. Bars are streamed: see the note in sm_sound.cpp.
   // `max_bars` caps how much of the melody is used. docs/art-and-audio.md wants
@@ -133,6 +161,10 @@ private:
   rv_pdk::rv_ca *ca_ = nullptr;
 
   int64_t effects_[SM_SFX_COUNT] = {};
+  // The two regions the three footstep surfaces take turns living in.
+  int64_t step_slot_[2] = {};
+  int64_t step_slot_bytes_[2] = {};
+  sm_song area_ = SM_SONG_NONE;
   int fired_[SM_SFX_COUNT] = {};
   int missing_ = 0;
   int64_t sound_bytes_ = 0;
@@ -146,6 +178,8 @@ private:
   int bar_limit_ = 0;
   int bars_played_ = 0;
   bool started_ = false;
+
+  bool loop_on_[SM_LOOP_COUNT] = {};
 
   std::vector<uint8_t> scratch_;
   int step_toggle_ = 0;

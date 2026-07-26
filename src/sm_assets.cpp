@@ -54,10 +54,26 @@ constexpr sm_tex_desc SM_TEXTURES[SM_TEX_COUNT] = {
 // from the environment ramp, shifting the street toward cold grey-blue". The
 // floor never reaches zero — tier 5 still keeps well over half the light,
 // because the countdown removes pools of light, not the ability to see.
-constexpr float SM_TIER_LEVEL[SM_TIER_COUNT] = {1.00f, 0.93f, 0.86f,
-                                                0.79f, 0.72f, 0.66f};
-constexpr float SM_TIER_WARMTH[SM_TIER_COUNT] = {1.00f, 0.95f, 0.90f,
-                                                 0.85f, 0.80f, 0.76f};
+// The darkening ramp, one entry per shift. It ACCELERATES rather than stepping
+// evenly, and that is the whole point: an even 0.05 a shift is a slope nobody
+// notices from inside, because each shift only ever gets compared to the one
+// before it. Widening the step as the count runs down means every shift is a
+// bigger drop than the last, so the descent is felt in the moment and shift 5
+// is not merely the darkest by arithmetic but by a clear margin.
+//
+// The floor is safe to push this low because of what sm_palette_tier_entry does
+// with it: `keep` is luminance SQUARED, and k = level + (1 - level) * keep, so a
+// full-brightness texel comes out at k = 1 at EVERY tier. The ramp takes the
+// facades, the asphalt and the concrete; it never touches a lamp core, a lit
+// window or the pre-warm ring. That is what lets shift 5 be nearly lightless and
+// still be playable — the only things left legible are the things meant to lead.
+constexpr float SM_TIER_LEVEL[SM_TIER_COUNT] = {0.72f, 0.64f, 0.55f,
+                                                0.45f, 0.34f, 0.22f};
+// Colour drains with the light, on the same accelerating curve. Late shifts are
+// not just darker, they are colder — the sodium warmth is the first thing a
+// failing grid loses.
+constexpr float SM_TIER_WARMTH[SM_TIER_COUNT] = {1.00f, 0.95f, 0.89f,
+                                                 0.83f, 0.76f, 0.68f};
 
 uint16_t read_u16(const uint8_t *p) {
   return static_cast<uint16_t>(p[0] | (static_cast<uint16_t>(p[1]) << 8));
@@ -92,7 +108,14 @@ bool read_resource(rv_pdk::rv_cd *cd, const char *name,
 } // namespace
 
 uint16_t sm_palette_tier_entry(uint16_t entry, int tier) {
-  if (tier <= 0)
+  // A NEGATIVE tier means untiered: the authored image, byte for byte, and the
+  // only way to get it. That is what the HUD, the font, the light pool and the
+  // smoke atlas ask for — things that must stay readable when the town is at its
+  // darkest. Tier 0 is NOT that: shift 1 already sits a little under the
+  // authored brightness, because the ramp has to have somewhere to descend
+  // FROM, and a first shift at full brightness makes the second look like a bug
+  // rather than like a night drawing in.
+  if (tier < 0)
     return entry;
   if (tier >= SM_TIER_COUNT)
     tier = SM_TIER_COUNT - 1;
@@ -110,9 +133,23 @@ uint16_t sm_palette_tier_entry(uint16_t entry, int tier) {
   const float level = SM_TIER_LEVEL[tier];
   const float warmth = SM_TIER_WARMTH[tier];
 
-  int nr = static_cast<int>(static_cast<float>(r) * level * warmth + 0.5f);
-  int ng = static_cast<int>(static_cast<float>(g) * level + 0.5f);
-  int nb = static_cast<int>(static_cast<float>(b) * level + 0.5f);
+  // HIGHLIGHTS SURVIVE THE RAMP. A flat multiply drags a lamp's glass down
+  // together with the asphalt around it and the whole frame goes muddy. Instead
+  // the scale is blended back toward 1 by the entry's OWN brightness: a dark
+  // surface takes the full darkening, and something already near the top of the
+  // range — mercury glass, a lit window, a hot filament — keeps very nearly what
+  // it had. That is what lets the base level drop this far without the lamps
+  // going with it.
+  //
+  // Luminance is weighted the way the eye resolves it, and the way the baker's
+  // own quantiser does: green dominates, blue barely counts.
+  const float lum = static_cast<float>(r * 3 + g * 6 + b * 1) / (31.0f * 10.0f);
+  const float keep = lum * lum;
+  const float k = level + (1.0f - level) * keep;
+
+  int nr = static_cast<int>(static_cast<float>(r) * k * warmth + 0.5f);
+  int ng = static_cast<int>(static_cast<float>(g) * k + 0.5f);
+  int nb = static_cast<int>(static_cast<float>(b) * k + 0.5f);
   if (nr > 31)
     nr = 31;
   if (ng > 31)
@@ -227,7 +264,7 @@ int64_t sm_assets::load(rv_pdk::rv_pdko &pdk) {
       for (uint16_t e = 0; e < palette_count; ++e) {
         const uint16_t base = read_u16(bytes.data() + palette_offset + e * 2);
         write_u16(palette_bytes.data() + e * 2,
-                  sm_palette_tier_entry(base, tier));
+                  sm_palette_tier_entry(base, desc.tiered ? tier : -1));
       }
 
       const int64_t paddr =

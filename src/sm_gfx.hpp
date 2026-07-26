@@ -106,8 +106,17 @@ public:
   //
   // `tess_metres` is the target size of one sub-quad; the call subdivides to
   // roughly that, more finely when the surface is close to the eye.
+  //
+  // `depth_bias` nudges the ordering-table key TOWARD THE CAMERA. The console
+  // keeps one key per polygon and quantises it into buckets, so a decal lying a
+  // couple of centimetres over a road computes almost the same key as the road:
+  // the two land in the same bucket, or in neighbouring ones depending on which
+  // way the rounding fell that frame, and the pair flickers as the camera
+  // moves. Lifting the decal geometrically cannot fix that — the KEY is what is
+  // quantised, so the key is what has to move.
   void quad(const rv_pdklib::rv_vec3 corners[4], sm_texref texture,
-            sm_uvrect uv, rv_pdk::rv_color tint, float tess_metres = 2.0f);
+            sm_uvrect uv, rv_pdk::rv_color tint, float tess_metres = 2.0f,
+            int32_t depth_bias = 0);
 
   // Same, untextured and one colour.
   void quad_flat(const rv_pdklib::rv_vec3 corners[4], rv_pdk::rv_color tint,
@@ -168,13 +177,14 @@ public:
 private:
   bool put(const rv_pdk::rv_primitive &primitive);
   void quad_raw(const rv_pdklib::rv_vec3 corners[4], const rv_pdk::rv_uv uv[4],
-                sm_texref texture, rv_pdk::rv_color tint, bool textured);
+                sm_texref texture, rv_pdk::rv_color tint, bool textured,
+                int32_t depth_bias = 0);
   // Transform, CLIP against the near plane, and file. Every world-space
   // surface in the game ends up here; see the theorem in sm_gfx.cpp.
   void emit_surface(const rv_pdklib::rv_vec3 corners[4],
                     const rv_pdk::rv_color colours[4],
-                    const rv_pdk::rv_uv uv[4], sm_texref texture,
-                    bool textured);
+                    const rv_pdk::rv_uv uv[4], sm_texref texture, bool textured,
+                    int32_t depth_bias = 0);
 
   rv_pdk::rv_cv *cv_ = nullptr;
   int64_t screen_width_ = 0;

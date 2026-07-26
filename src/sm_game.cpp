@@ -15,9 +15,11 @@ namespace solidmaid {
 // Placed by sm_build_factory(); declared here rather than in a header because
 // exactly one caller draws on that panel.
 extern const rv_pdklib::rv_vec3 sm_factory_board_text_origin;
-extern const rv_pdklib::rv_vec3 sm_factory_board_plan_origin;
 extern const rv_pdklib::rv_vec3 sm_factory_board_text_right;
 extern const rv_pdklib::rv_vec3 sm_factory_board_text_down;
+// The hand-placed plan origin was correct for exactly one string, of exactly
+// thirteen glyphs. The resolved line is seven now, so the centring is computed.
+rv_pdklib::rv_vec3 sm_factory_board_text_origin_for(int glyph_count, int line);
 
 namespace {
 
@@ -53,10 +55,12 @@ void board_line(int digit, char *out, int size) {
   out[i] = '\0';
 }
 
-// "ПЛАН ВЫПОЛНЕН"
-constexpr const char *SM_TEXT_PLAN_DONE =
-    "\xD0\x9F\xD0\x9B\xD0\x90\xD0\x9D "
-    "\xD0\x92\xD0\xAB\xD0\x9F\xD0\x9E\xD0\x9B\xD0\x9D\xD0\x95\xD0\x9D";
+// What the board resolves to when the count reaches zero. Seven glyphs where
+// the old line had thirteen, so the origin can no longer be the hand-placed
+// one: sm_factory_board_text_origin_for() re-centres it on the panel for its
+// own length.
+constexpr const char *SM_TEXT_BOARD_FINAL = "БАНКРОТ";
+constexpr int SM_TEXT_BOARD_FINAL_GLYPHS = 7;
 
 // A trace of what the scripted run actually did, on stderr, and ONLY while the
 // autopilot is driving. It is how a headless playthrough becomes evidence
@@ -260,9 +264,20 @@ sm_autopilot::drive(sm_mode mode, const sm_countdown &state,
 
   // ── who is trying to stop me? ─────────────────────────────────────────────
   rv_vec3 target{};
-  const bool threatened = enemies.nearest_target(
+  bool threatened = enemies.nearest_target(
       player.eye(), sm_forward(player.yaw(), player.pitch()), 14.0f, 75.0f,
       target);
+  // The scripted loss has to be able to find something to lose TO, and the 75°
+  // cone above is the FIGHTING sense: you can only swing at what you are facing.
+  // The street walk is a straight line at 2.6 m/s with the spawns trailing
+  // behind it, so looking only forward meant the walker crossed the whole street
+  // untouched and the one deliberate death never landed — leaving "a death does
+  // not move the count" checked by the unit tests and by nothing that plays.
+  if (wants_deliberate_loss_ && !threatened) {
+    threatened = enemies.nearest_target(
+        player.eye(), sm_forward(player.yaw(), player.pitch()), 18.0f, 180.0f,
+        target);
+  }
   float target_range = 0.0f;
   if (threatened) {
     const rv_vec3 to_target = target - player.eye();
@@ -330,9 +345,15 @@ sm_autopilot::drive(sm_mode mode, const sm_countdown &state,
   // only a few tens of centimetres deep, and stopping short of the centre
   // leaves the walker standing outside the volume waiting for something that
   // will never fire. Walk into it and let the transition end the phase.
-  const float stop_at = flee_here ? 0.0f
-                                  : (work_here ? SM_ASSEMBLY_REACH * 0.55f
-                                               : (fetch_here ? 0.85f : 0.0f));
+  // And once it has walked into range it STANDS there. Kipuchka is faster than
+  // the player: a walker that keeps closing turns into a walker being chased,
+  // and neither of them ever quite arrives.
+  const float stop_at =
+      (wants_deliberate_loss_ && threatened)
+          ? 0.9f
+          : (flee_here ? 0.0f
+                       : (work_here ? SM_ASSEMBLY_REACH * 0.55f
+                                    : (fetch_here ? 0.85f : 0.0f)));
   if (distance > stop_at) {
     float relative = travel_yaw - player.yaw();
     while (relative > SM_PI)
@@ -383,10 +404,16 @@ sm_autopilot::drive(sm_mode mode, const sm_countdown &state,
       pad_.right_trigger = 1.0f;
       pad_.buttons |= rv_pdk::RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL;
     }
-  } else if (work_here && distance < SM_ASSEMBLY_REACH * 0.8f) {
-    pad_.right_trigger = 1.0f;
-    pad_.buttons |= rv_pdk::RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL; // hold to work
   }
+
+  // Work is NOT part of that chain any more, and that is the point of putting it
+  // on A: the bench and the weapons are different fingers, so the harness holds
+  // A down for as long as it is standing at the bench and still swings at
+  // whatever walks up to it. Left inside the else-if it only ever worked on the
+  // frames nothing was threatening it, which on a late shift is almost none —
+  // exactly the trap a player would have been in.
+  if (work_here && distance < SM_ASSEMBLY_REACH * 0.8f && !flee_here)
+    pad_.buttons |= rv_pdk::RV_ISOURCE_FRONT_BTTN_SOUTH;
 
   return &pad_;
 }
@@ -499,6 +526,9 @@ void sm_game::enter_area(sm_area area) {
   assembly_done_ = false;
   board_clack_ = 0.0f;
   shift_end_ = 0.0f;
+  // update_assembly() only runs in the hall, so a player who walked out of it
+  // mid-step would otherwise carry a stale "still working" into the next area.
+  assembly_working_ = false;
   return_open_ = false;
   escalation_released_ = false;
   prompt_ = SM_PROMPT_NONE;
@@ -519,6 +549,13 @@ void sm_game::enter_area(sm_area area) {
                                                      : SM_SONG_FACTORY;
       sound_->play_song(song);
     }
+
+    // And the bank for the area we just walked into. Sound RAM holds one
+    // area's worth at a time; the swap completes over the next few frames,
+    // behind the fade that is already running.
+    sound_->set_area(area == SM_AREA_HOME     ? SM_SONG_HOME
+                     : area == SM_AREA_STREET ? SM_SONG_STREET
+                                              : SM_SONG_FACTORY);
   }
   step_from_ = scene_.player_start;
   step_distance_ = 0.0f;
@@ -641,7 +678,7 @@ void sm_game::handle_triggers() {
       state_.phase = SM_PHASE_FINAL;
       sm_save_store(pdk_ ? pdk_->cm() : nullptr, state_);
       if (autopilot_.enabled()) {
-        std::fprintf(stderr, "[play] ПЛАН ВЫПОЛНЕН — run finished\n");
+        std::fprintf(stderr, "[play] БАНКРОТ — run finished\n");
       }
       mode_ = SM_MODE_ENDING;
       mode_time_ = 0.0f;
@@ -727,6 +764,10 @@ void sm_game::handle_hands(const sm_input &input, float dt) {
         std::fprintf(stderr, "[play] took the pipe\n");
     } else if (prompt_ == SM_PROMPT_TELEVISION) {
       television_on_ = !television_on_;
+      // The set answers. The picture fading up is slow enough to read as the
+      // tube warming rather than as a response to the press, so the click is
+      // what tells the player the switch took.
+      feel_.cue(SM_SFX_UI_PROMPT);
     } else if (prompt_ != SM_PROMPT_ASSEMBLE && combat_.has(SM_ITEM_BRICK)) {
       combat_.begin_charge();
     }
@@ -748,6 +789,7 @@ void sm_game::handle_hands(const sm_input &input, float dt) {
       feel_.cue(SM_SFX_PICKUP);
     } else if (prompt_ == SM_PROMPT_TELEVISION) {
       television_on_ = !television_on_;
+      feel_.cue(SM_SFX_UI_PROMPT);
     } else if (prompt_ != SM_PROMPT_ASSEMBLE && combat_.has(SM_ITEM_PIPE)) {
       combat_.swing(feel_);
     }
@@ -755,6 +797,13 @@ void sm_game::handle_hands(const sm_input &input, float dt) {
 }
 
 void sm_game::update_assembly(const sm_input &input, float dt) {
+  // The assembly loop is stated as a fact every frame rather than switched on
+  // edges: it runs exactly while the player is holding the bench and doing work
+  // on it, and every early return below is a reason it should not be running.
+  // set_loop() ignores a repeat of what it already is, so this costs nothing.
+  assembly_working_ = !assembly_done_ && !state_.is_final_lap() &&
+                      prompt_ == SM_PROMPT_ASSEMBLE && input.confirm_held;
+
   // The finished-assembly beat is handled BEFORE the final-lap guard, and the
   // order is load-bearing. The fifth assembly is the one that takes the count
   // to zero, so by the time this runs is_final_lap() is already true — guarding
@@ -784,7 +833,12 @@ void sm_game::update_assembly(const sm_input &input, float dt) {
     return; // the hall is inert; there is nothing to build
 
   const bool at_bench = prompt_ == SM_PROMPT_ASSEMBLE;
-  const bool holding = input.hand_right || input.hand_left;
+  // A, held — NOT a hand. Both hands stay live at the bench so the player can
+  // still swing at whatever walks up behind them mid-assembly, which is the
+  // whole tension of the hall; sharing a button with the weapons meant letting
+  // go to defend yourself and never being sure which of the two you had asked
+  // for.
+  const bool holding = input.confirm_held;
 
   if (assembly_interrupt_flash_ > 0.0f)
     assembly_interrupt_flash_ -= dt;
@@ -861,6 +915,19 @@ void sm_game::update(const sm_input &input, float dt) {
   if (input.view_pressed)
     debug_overlay_ = !debug_overlay_;
 
+  // The two continuous beds, stated as facts once a frame and OUTSIDE the mode
+  // switch. Inside it they were only ever restated while the game was playing,
+  // so a knockout — which stops calling update_assembly() — left the bench loop
+  // running over the death screen until the shift restarted. A bed that is
+  // driven by a condition has to be driven by it in every mode the condition
+  // can become false in, and death is one of them.
+  if (sound_) {
+    const bool playing = mode_ == SM_MODE_PLAY;
+    sound_->set_loop(SM_LOOP_CONVEYOR, playing && area_ == SM_AREA_FACTORY &&
+                                           !state_.is_final_lap());
+    sound_->set_loop(SM_LOOP_ASSEMBLY, playing && assembly_working_);
+  }
+
   // The REAL dt, deliberately: a hitstop freezes the world, not the music.
   if (sound_)
     sound_->update(dt);
@@ -879,6 +946,10 @@ void sm_game::update(const sm_input &input, float dt) {
       enter_area(SM_AREA_HOME);
     }
     if (input.confirm_pressed || input.cancel_pressed) {
+      // The only sound the title screen makes. Everything after this press is a
+      // fade to a dark flat, so without it the first half second of the game is
+      // indistinguishable from a machine that has stopped responding.
+      feel_.cue(SM_SFX_UI_PROMPT);
       if (autopilot_.enabled())
         std::fprintf(stderr, "[play] start\n");
       mode_ = SM_MODE_FADE_IN;
@@ -968,6 +1039,7 @@ void sm_game::update(const sm_input &input, float dt) {
                      feel_);
       update_assembly(input, step);
     }
+
 
     handle_triggers();
     if (player_.dead())
@@ -1095,9 +1167,10 @@ void sm_game::render() {
                        sm_factory_board_text_right, sm_factory_board_text_down,
                        line, ink);
     if (state_.is_final_lap()) {
-      sm_text_draw_world(*gfx_, *assets_, sm_factory_board_plan_origin,
-                         sm_factory_board_text_right,
-                         sm_factory_board_text_down, SM_TEXT_PLAN_DONE, ink);
+      const rv_vec3 origin =
+          sm_factory_board_text_origin_for(SM_TEXT_BOARD_FINAL_GLYPHS, 1);
+      sm_text_draw_world(*gfx_, *assets_, origin, sm_factory_board_text_right,
+                         sm_factory_board_text_down, SM_TEXT_BOARD_FINAL, ink);
     }
   }
 

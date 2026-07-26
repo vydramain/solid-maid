@@ -76,7 +76,12 @@ void sm_build_home(sm_scene &out, const sm_countdown &state) {
   out.floor_y = 0.0f;
   out.ceiling_y = CEILING;
   // A one-room flat: the longest sightline is the hallway, about 7 m.
-  out.far_plane = 14.0f;
+  // Far enough to contain THE VIEW, not just the room. The opposite block of
+  // the courtyard stands at z = 15 m and rises to 14 m; a far plane tucked in
+  // around the flat clipped all of it away and turned the window into a hole
+  // with nothing behind it. The depth resolution this costs is the price of
+  // the one thing the window exists for.
+  out.far_plane = 28.0f;
   out.draws_sky = false;
   // The ambient floor made literal. Dim and slightly warm — the one working
   // bulb — and never zero, on any tier, final lap included.

@@ -184,7 +184,7 @@ std::string_view prompt_text(sm_prompt prompt) {
   case SM_PROMPT_TELEVISION:
     return "ТВ";
   case SM_PROMPT_ASSEMBLE:
-    return "СБОРКА";
+    return "СБОРКА - A";
   case SM_PROMPT_TAKE_BRICK:
   case SM_PROMPT_TAKE_PIPE:
   case SM_PROMPT_NONE:
@@ -327,28 +327,19 @@ void sm_ui_draw_hud(sm_gfx &gfx, const sm_assets &assets,
                  SM_DEPTH_HUD);
 
   // ── health ───────────────────────────────────────────────────────────────
-  // Bottom-left, small, and never a number: the readout is a bar and a mark,
-  // because a digit on the HUD would be a second number in a game that has
-  // exactly one. Kept clear of the hurt border's worst-case thickness.
-  gfx.sprite_tex(10, h - 24, 14, 14, hud, SM_UV_HP_ICON, SM_COL_BLACK,
-                 SM_DEPTH_HUD);
-  draw_meter(gfx, 28, h - 19, 76, 8, hp_fraction, SM_COL_TRACK, SM_COL_HEALTH,
-             SM_DEPTH_HUD);
-  gfx.sprite_tex(24, h - 21, 4, 12, hud, SM_UV_BAR_END, SM_COL_BLACK,
-                 SM_DEPTH_HUD);
-  gfx.sprite_tex(104, h - 21, 4, 12, hud, uv_mirror(SM_UV_BAR_END, true, false),
-                 SM_COL_BLACK, SM_DEPTH_HUD);
+  // TURNED OFF. Health is reported by the hurt flash, the vignette that closes
+  // in as it falls, and the view model — the bar and its icon said the same
+  // thing a third time and put furniture in the corner of a frame that is only
+  // 320x240 to begin with. The vignette below still reads the same number.
+  (void)hp_fraction;
 
-  // ── the tool, its charge and its cooldown ────────────────────────────────
-  // One icon for what is in the throwing hand, and one meter that is either
-  // the wind-up of a readied throw or the wait before the next one. Never both
-  // — they cannot happen at the same time.
+  // ── the tool's charge and cooldown ───────────────────────────────────────
+  // The ICON is off too: the hands are on screen holding the thing, which is a
+  // better answer to "what am I carrying" than a pictogram of it. The meter
+  // stays, because a throw's wind-up and its cooldown have no other tell.
   const sm_hand_item tool =
       model.right_hand != SM_ITEM_NONE ? model.right_hand : model.left_hand;
   if (tool != SM_ITEM_NONE) {
-    gfx.sprite_tex(w - 22, h - 24, 16, 16, hud,
-                   tool == SM_ITEM_PIPE ? SM_UV_ICON_PIPE : SM_UV_ICON_BRICK,
-                   SM_COL_BLACK, SM_DEPTH_HUD);
     if (model.charge > 0.0f) {
       draw_meter(gfx, w - 96, h - 19, 68, 8, model.charge, SM_COL_TRACK,
                  SM_COL_CHARGE, SM_DEPTH_HUD);
@@ -407,7 +398,7 @@ void sm_ui_draw_hud(sm_gfx &gfx, const sm_assets &assets,
   // ── the interaction prompt ───────────────────────────────────────────────
   // ONE at a time, by construction: sm_prompt is a single value, not a set.
   if (model.prompt != SM_PROMPT_NONE) {
-    const int frame_w = 72;
+    const int frame_w = 94;
     const int frame_h = 24;
     const int fx = (w - frame_w) / 2;
     const int fy = h / 2 + 20;
@@ -535,18 +526,23 @@ void sm_ui_draw_knockout(sm_gfx &gfx, const sm_assets &assets, float amount) {
   sm_ui_draw_fade(gfx, a * a, SM_COL_BLACK);
 }
 
-void sm_ui_draw_ending(sm_gfx &gfx, const sm_assets &, float amount) {
-  // ПЛАН ВЫПОЛНЕН has already resolved — on the board, in the board's own
-  // lettering, drawn by sm_text_draw_world() on a wall in the factory. This is
-  // only what follows it.
-  //
-  // It is deliberately empty. No card, no title, no summary, no number, no
-  // "thanks for playing", and above all no restatement of what the board said
-  // (docs/mechanics.md: "no cutscene, no new geometry, no boss, no dialogue").
-  // The light in the hall goes out evenly and that is the end of it. The
-  // assets parameter is unnamed because there is genuinely nothing here to
-  // draw from an atlas.
-  sm_ui_draw_fade(gfx, clamp01(amount), SM_COL_BLACK);
+void sm_ui_draw_ending(sm_gfx &gfx, const sm_assets &assets, float amount) {
+  // БАНКРОТ has already resolved on the board, in the board's own lettering,
+  // painted on a wall in the factory. This is what follows it, and it arrives
+  // only once the curtain is fully down: two lines, no card, no border, no
+  // number, no "thanks for playing".
+  const float a = clamp01(amount);
+  sm_ui_draw_fade(gfx, a, SM_COL_BLACK);
+  if (a < 0.999f)
+    return;
+
+  // Filed ABOVE the fade — the curtain is one opaque sprite at SM_DEPTH_FADE
+  // and would otherwise be drawn over the top of this.
+  const int w = gfx.width();
+  sm_text_draw_centred(gfx, assets, w / 2, 100, "ТЫ БАНКРОТ", SM_COL_BLACK, 2,
+                       SM_DEPTH_OVER_FADE);
+  sm_text_draw_centred(gfx, assets, w / 2, 130, "И ТВОЙ ЗАВОД ТОЖЕ",
+                       SM_COL_BLACK, 1, SM_DEPTH_OVER_FADE);
 }
 
 void sm_ui_draw_title(sm_gfx &gfx, const sm_assets &assets, float pulse,

@@ -135,6 +135,11 @@ private:
 
   // Assembly, while the player is holding the bench.
   float assembly_hold_ = 0.0f;
+  // Whether the bench is being worked THIS frame. A member rather than a local
+  // because the two continuous beds are stated once per frame, above the mode
+  // switch, and a fact that only exists inside SM_MODE_PLAY's branch is exactly
+  // how the bench loop kept droning over the knockout screen.
+  bool assembly_working_ = false;
   float assembly_interrupt_flash_ = 0.0f;
   bool assembly_done_ = false;
   float board_clack_ = 0.0f;

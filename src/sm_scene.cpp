@@ -217,8 +217,10 @@ void draw_light_pool(sm_gfx &gfx, const sm_assets &assets, rv_vec3 centre) {
   // Tessellated rather than drawn as one quad: it lies on the ground the player
   // walks over, so a corner crosses the near plane constantly, and a whole-
   // polygon near rejection would make the pool blink out underfoot.
+  // Biased toward the eye so the pool never trades places with the road it
+  // lies on — see sm_gfx::quad.
   gfx.quad(corners, pool, SM_UV_LIGHT_POOL, rv_pdk::rv_color{255, 255, 255},
-           2.2f);
+           2.2f, SM_DEPTH_BIAS_DECAL);
 }
 
 void draw_lamp(sm_gfx &gfx, const sm_assets &assets, int tier,

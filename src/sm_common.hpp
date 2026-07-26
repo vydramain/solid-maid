@@ -72,10 +72,21 @@ inline constexpr float SM_FAR_PLANE = 46.0f;
 inline constexpr int32_t SM_DEPTH_SKY = -32600;       // behind everything
 inline constexpr int32_t SM_DEPTH_WORLD_MIN = -32000; // at the far plane
 inline constexpr int32_t SM_DEPTH_WORLD_MAX = 26000;  // at the near plane
+// What a decal adds to its own depth key so it beats the surface it lies on.
+// One bucket is roughly 64 key units across the world's range, so this is a few
+// buckets: decisive against a coplanar floor, far too small to jump a wall.
+inline constexpr int32_t SM_DEPTH_BIAS_DECAL = 260;
+
 inline constexpr int32_t SM_DEPTH_VIEWMODEL =
     28000; // the hands and the held tool
 inline constexpr int32_t SM_DEPTH_HUD = 29500;
 inline constexpr int32_t SM_DEPTH_HUD_TEXT = 30500;
+// Above the curtain. SM_DEPTH_FADE is opaque black across the whole screen, so
+// anything meant to be READ over a closed fade — the ending card, and only the
+// ending card — has to be filed nearer than it is. 32767 is the rail; this
+// leaves room under it rather than sitting on it.
+inline constexpr int32_t SM_DEPTH_OVER_FADE = 32700;
+
 inline constexpr int32_t SM_DEPTH_FADE =
     32600; // the transition curtain, over everything
 
@@ -89,6 +100,15 @@ inline constexpr float SM_PLAYER_ACCEL =
 inline constexpr float SM_PLAYER_FRICTION = 26.0f;
 inline constexpr int SM_PLAYER_MAX_HP = 100;
 inline constexpr float SM_PLAYER_IFRAMES = 0.55f; // after taking a hit
+// A landed melee hit ROOTS the player. This is the other half of making the
+// pest a chase: speed alone only shortens the gap, the stagger is what closes
+// it, because the ground the player would have covered running away is ground
+// they now do not cover. Deliberately shorter than SM_PLAYER_IFRAMES, so a
+// second attacker can never extend the root past the window the first hit
+// already made the player invulnerable for — being unable to move IS the
+// punishment, and a lock the player cannot see the end of is not one.
+// Looking is untouched: taking the camera away is a different, worse feeling.
+inline constexpr float SM_PLAYER_STAGGER = 0.30f;
 
 // docs/gameplay.md §4: dead zone, a fine-aim zone near centre, a higher rate
 // toward the edge. A single linear sensitivity "will feel bad and no amount of
@@ -169,7 +189,12 @@ inline constexpr float SM_SPAWN_GRACE =
     1.5f; // harmless for this long after spawn
 
 inline constexpr int SM_KIPUCHKA_HP = 60;
-inline constexpr float SM_KIPUCHKA_SPEED = 3.15f;
+// Faster than SM_PLAYER_WALK_SPEED by a clear margin, and the margin is the
+// point: at 3.15 it gained 0.55 m/s on a fleeing player and lost 2.3 m standing
+// through every windup and recovery, so it never actually arrived — it was a
+// threat only to a player who chose to stop. At 3.9 it gains 1.3 m/s, which is
+// enough to make walking away a losing move on its own.
+inline constexpr float SM_KIPUCHKA_SPEED = 3.90f;
 inline constexpr float SM_KIPUCHKA_JITTER = 1.9f; // lateral weave, m/s
 inline constexpr float SM_KIPUCHKA_AGGRO = 17.0f;
 inline constexpr float SM_KIPUCHKA_ATTACK_RANGE = 1.35f;
@@ -179,7 +204,11 @@ inline constexpr float SM_KIPUCHKA_COOLDOWN = 1.05f;
 inline constexpr int SM_KIPUCHKA_DAMAGE = 12;
 inline constexpr float SM_KIPUCHKA_RADIUS = 0.38f;
 
-inline constexpr int SM_SMOKER_HP = 85;
+// Three hits with either weapon, and the arithmetic is the whole reason for the
+// number: a brick does 55, so two land on 110 and it has to survive that; a pipe
+// does 40, so three land on 120 and it must not. 115 is the only band where both
+// weapons agree on three.
+inline constexpr int SM_SMOKER_HP = 115;
 inline constexpr float SM_SMOKER_SPEED = 1.45f;
 inline constexpr float SM_SMOKER_AGGRO = 21.0f;
 inline constexpr float SM_SMOKER_STANDOFF =
@@ -188,6 +217,27 @@ inline constexpr float SM_SMOKER_WINDUP = 0.85f; // the self-lit pre-warm ring
 inline constexpr float SM_SMOKER_COOLDOWN = 3.4f;
 inline constexpr float SM_SMOKER_RADIUS = 0.42f;
 inline constexpr float SM_CLOUD_RADIUS = 3.3f;
+// How much further than "its standoff plus a cloud" the smoker is willing to
+// commit from. Without it the smoker only ever exhaled at ground it was already
+// nearly standing on, so backing off ended the pressure completely and it read
+// as a melee enemy with a slow attack. With it the denied ground reaches past
+// where the player retreated to, which is what area denial is supposed to feel
+// like — and it costs nothing in fairness, because the pre-warm ring is drawn
+// at full size wherever it lands.
+inline constexpr float SM_CLOUD_COMMIT_BONUS = 4.5f;
+// The exhale is aimed where the player is GOING, not where they stand. A ring
+// dropped on the player's own feet is the one place they cannot see it: it opens
+// underneath the camera, its near rim is behind the near plane, and the puffs
+// that follow are centred on the eye and get rejected whole — so a walking
+// player takes chip damage from smoke that was never drawn. Pushed ahead along
+// the player's own movement the ring opens in front of them, in view, and the
+// answer stops being "keep walking" and becomes "turn, or stop".
+//
+// Leading by the full 0.85 s windup would be undodgeable — it would land exactly
+// where a player holding their course arrives. This is deliberately short of
+// that: hold course and you still clip the rim, only a change of course is clean.
+inline constexpr float SM_CLOUD_LEAD_TIME = 0.62f;
+inline constexpr float SM_CLOUD_LEAD_MAX = 2.6f; // metres, never past a radius
 inline constexpr float SM_CLOUD_GROW_TIME = 0.7f;
 inline constexpr float SM_CLOUD_LIFETIME = 3.6f;
 inline constexpr int SM_CLOUD_TICK_DAMAGE = 5;

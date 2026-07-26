@@ -90,6 +90,8 @@ void sm_input_reader::sample(rv_pdk::rv_cio *cio,
 
   const uint64_t rising = state.buttons & ~previous_buttons_;
   out.confirm_pressed = (rising & rv_pdk::RV_ISOURCE_FRONT_BTTN_SOUTH) != 0;
+  out.confirm_held =
+      (state.buttons & rv_pdk::RV_ISOURCE_FRONT_BTTN_SOUTH) != 0;
   out.cancel_pressed = (rising & rv_pdk::RV_ISOURCE_FRONT_BTTN_EAST) != 0;
   out.menu_pressed = (rising & rv_pdk::RV_ISOURCE_MENU_BTTN_MENU) != 0;
   out.menu_held = (state.buttons & rv_pdk::RV_ISOURCE_MENU_BTTN_MENU) != 0;

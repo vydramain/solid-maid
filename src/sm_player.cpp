@@ -48,6 +48,7 @@ void sm_player::reset(rv_vec3 position, float yaw) {
   // A shift always begins whole: losing costs time, not progress.
   hp_ = SM_PLAYER_MAX_HP;
   iframes_ = 0.0f;
+  stagger_ = 0.0f;
   hurt_flash_ = 0.0f;
 
   bob_phase_ = 0.0f;
@@ -186,8 +187,12 @@ void sm_player::update(const sm_input &input, const sm_scene &scene,
     push = 1.0f;
   }
 
+  // Rooted by a hit. The wish goes to zero rather than the velocity: the
+  // existing damping then brings the body to a stop over a few frames instead
+  // of nailing it in place on one, which reads as being hit rather than as the
+  // game dropping input.
   rv_vec3 wish{0.0f, 0.0f, 0.0f};
-  if (!down && push > 0.0f) {
+  if (!down && push > 0.0f && stagger_ <= 0.0f) {
     const rv_vec3 ahead =
         sm_forward(yaw_, 0.0f); // flattened: pitch never drives the feet
     const rv_vec3 across = sm_right(yaw_);
@@ -241,6 +246,11 @@ void sm_player::update(const sm_input &input, const sm_scene &scene,
     if (iframes_ < 0.0f)
       iframes_ = 0.0f;
   }
+  if (stagger_ > 0.0f) {
+    stagger_ -= dt;
+    if (stagger_ < 0.0f)
+      stagger_ = 0.0f;
+  }
   if (hurt_flash_ > 0.0f) {
     // The flash lasts exactly as long as the invulnerability it announces, so
     // the player learns one duration rather than two.
@@ -271,6 +281,12 @@ void sm_player::damage(int amount, rv_vec3 from, bool bypass_iframes,
   // it, which turns area denial into area protection.
   if (!bypass_iframes)
     iframes_ = SM_PLAYER_IFRAMES;
+
+  // A FIST STOPS YOU; SMOKE DOES NOT. Rooting on chip damage would mean a
+  // player who walked into a cloud could not walk back out of it, which turns
+  // area denial into a trap with no answer.
+  if (!bypass_iframes)
+    stagger_ = SM_PLAYER_STAGGER;
 
   // The flash is the confirmation that survives a missing sound bank, so it is
   // still set to full on EVERY hit, i-frames or not, cloud or fist.

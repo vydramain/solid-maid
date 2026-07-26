@@ -26,6 +26,9 @@ g++ -std=c++23 -Wall -Wextra -Werror -g -O1 \
     "$DISC_DIR/src/sm_state.cpp" \
     "$DISC_DIR/src/sm_assets.cpp" \
     "$DISC_DIR/src/sm_scene.cpp" \
+    "$DISC_DIR/src/sm_enemy.cpp" \
+    "$DISC_DIR/src/sm_combat.cpp" \
+    "$DISC_DIR/src/sm_sound.cpp" \
     "$DISC_DIR/src/sm_level_home.cpp" \
     "$DISC_DIR/src/sm_level_street.cpp" \
     "$DISC_DIR/src/sm_level_factory.cpp" \

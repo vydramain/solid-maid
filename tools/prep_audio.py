@@ -39,7 +39,13 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DISC = os.path.dirname(HERE)
+# The recording folder, when there is one. Once a batch has been processed and
+# the originals cleared out, later takes tend to arrive loose in assets/ — so
+# that is the fallback rather than an error. Either way only files named in
+# RENAME are touched, so a stray file in assets/ is reported, never guessed at.
 SRC = os.path.join(DISC, "assets", "sound")
+if not os.path.isdir(SRC):
+    SRC = os.path.join(DISC, "assets")
 OUT = os.path.join(DISC, "assets", "snd")
 
 # One-shots land here; the beds land BED_BELOW decibels under them. -2 dBFS is
@@ -166,6 +172,12 @@ RENAME = {
     "Дмыарь атака.ogg": "sfx_smoker_attack",   # the source name is a typo
     "прерывание сборки.ogg": "sfx_assembly_break",
     "board clack.ogg": "sfx_board_clack",
+
+    # The factory's two continuous loops. Both are exactly 1.000 s, which is the
+    # same grid the music bars sit on, so they neither drift against the melody
+    # nor need to.
+    "звук конвеера.ogg": "sfx_loop_conveyor",
+    "сборка фонаря.ogg": "sfx_loop_assembly",
     # REAPER read the slash in this item's name as a path separator and
     # buried it in a directory of its own; copied out flat.
     "тик взаимодействия.ogg": "sfx_ui_prompt",
@@ -192,11 +204,26 @@ for i in range(1, 4):
     RENAME[f"завод_{i}.ogg"] = f"mus_factory_{i:02d}"
 
 
+# Continuous loops. They get the bed's TREATMENT — never trimmed, never faded —
+# for the bed's reasons: a loop's length is its period, and a fade at the end of
+# a loop is an audible dip once a second, forever. They do NOT get the bed's
+# level: where they sit in the mix is decided at playback (sm_sound.cpp), so the
+# file is normalised like any other effect and the runtime gain is the only
+# thing setting them below the melody.
+LOOPS = {"sfx_loop_conveyor", "sfx_loop_assembly"}
+
+
 def is_bed(name):
     return name.startswith("mus_")
 
 
+def is_loop(name):
+    return name in LOOPS
+
+
 def area_of(name):
+    if is_loop(name):
+        return "sfx"
     if name.startswith("mus_home"):
         return "home"
     if name.startswith("mus_street"):
@@ -224,7 +251,7 @@ def main():
         duration = probe_duration(src)
         peak = probe_peak(src)
 
-        if is_bed(name):
+        if is_bed(name) or is_loop(name):
             # MUSIC IS NEVER TRIMMED. These are consecutive bars of one melody,
             # played back to back on a clock, so a bar's LENGTH is the tempo —
             # trimming a quiet tail out of bar 3 does not save memory worth
@@ -247,7 +274,8 @@ def main():
         gain = (target - peak) if peak is not None else 0.0
 
         dst = os.path.join(OUT, name + ".wav")
-        convert(src, dst, gain, start, length, fade=not is_bed(name))
+        convert(src, dst, gain, start, length,
+                fade=not (is_bed(name) or is_loop(name)))
 
         # The console takes NAKED SAMPLE BYTES: rv_ca::sound_asset_write is
         # handed an rv_sample that is a pointer and a length, and there is no

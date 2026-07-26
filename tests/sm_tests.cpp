@@ -11,6 +11,7 @@
 #include <string>
 
 #include "sm_assets.hpp"
+#include "sm_enemy.hpp"
 #include "sm_scene.hpp"
 #include "sm_state.hpp"
 #include "sm_text.hpp"
@@ -235,10 +236,29 @@ void test_palette_ramp() {
     // not the ability to see (docs/mechanics.md).
     const uint16_t darkest = sm_palette_tier_entry(sample, SM_TIER_COUNT - 1);
     const int lum = (darkest & 0x1F) + ((darkest >> 5) & 0x1F) + ((darkest >> 10) & 0x1F);
-    CHECK(lum >= 30);
+    CHECK(lum >= 24);
 
-    // Tier 0 is the authored image, unchanged.
-    CHECK(sm_palette_tier_entry(sample, 0) == sample);
+    // Every step is a BIGGER step than the one before it. The descent has to be
+    // felt from inside the run, where each shift is only ever compared to the
+    // shift before it, and an even slope is the one thing nobody notices.
+    int previous_drop = 0;
+    int last = (sm_palette_tier_entry(sample, 0) & 0x1F) +
+               ((sm_palette_tier_entry(sample, 0) >> 5) & 0x1F) +
+               ((sm_palette_tier_entry(sample, 0) >> 10) & 0x1F);
+    for (int tier = 1; tier < SM_TIER_COUNT; ++tier) {
+        const uint16_t packed = sm_palette_tier_entry(sample, tier);
+        const int sum = (packed & 0x1F) + ((packed >> 5) & 0x1F) + ((packed >> 10) & 0x1F);
+        const int drop = last - sum;
+        CHECK(drop >= previous_drop);
+        previous_drop = drop;
+        last = sum;
+    }
+
+    // Untiered is the authored image, unchanged — the HUD, the font and the
+    // self-lit pre-warm ring reach it with a negative tier and nothing else does.
+    CHECK(sm_palette_tier_entry(sample, -1) == sample);
+    // And tier 0 is NOT the authored image: shift 1 already sits under it.
+    CHECK(sm_palette_tier_entry(sample, 0) != sample);
 }
 
 // ── text ──────────────────────────────────────────────────────────────────────
@@ -334,6 +354,11 @@ void test_collision_never_traps() {
     };
 
     // Walk the length of the corridor, shoving into both walls and the pillar.
+    // The bail-out below counts THIS test's failures, not the suite's: keyed to
+    // the global it would break the moment any earlier test failed, and then
+    // report a second, invented failure on line 349 that says nothing about
+    // collision at all.
+    const int failures_before = g_failures;
     rv_pdklib::rv_vec3 at{0.0f, 0.0f, 0.0f};
     for (int step = 0; step < 600; ++step) {
         const float push = (step % 3 == 0) ? 0.9f : ((step % 3 == 1) ? -0.9f : 0.0f);
@@ -342,11 +367,84 @@ void test_collision_never_traps() {
 
         CHECK(std::isfinite(at.x) && std::isfinite(at.z));
         CHECK(!inside_anything(at));
-        if (g_failures > 0) break;  // one report is enough; do not print 600
+        if (g_failures > failures_before) break;  // one report is enough; do not print 600
     }
 
     // And it made progress rather than refusing to move at all.
     CHECK(at.z > 5.0f);
+}
+
+// ── the smoker's exhale ───────────────────────────────────────────────────────
+
+// Walks a player across open ground in front of a smoker until it commits, and
+// hands back the cloud it filed together with where the player was standing at
+// that moment. Returns false if it never committed.
+bool run_until_exhale(rv_pdklib::rv_vec3 heading, sm_cloud& out_cloud,
+                      rv_pdklib::rv_vec3& out_player) {
+    sm_scene scene{};
+    scene.floor_y = 0.0f;
+
+    sm_enemies enemies{};
+    enemies.reset();
+    rv_pdklib::rv_vec3 player{0.0f, 0.0f, 0.0f};
+    // Past SM_SPAWN_MIN_DISTANCE, and off to the side so it has to close to
+    // its standoff before it can commit to anything.
+    CHECK(enemies.spawn(SM_ENEMY_SMOKER, rv_pdklib::rv_vec3{0.0f, 0.0f, 11.0f}, player));
+
+    std::vector<sm_enemy_damage> damage;
+    const float dt = 1.0f / 60.0f;
+    for (int frame = 0; frame < 900; ++frame) {
+        player = player + heading * (SM_PLAYER_WALK_SPEED * dt);
+        enemies.update(dt, scene, player, damage);
+        for (const sm_cloud& cloud : enemies.clouds()) {
+            if (!cloud.alive) continue;
+            out_cloud = cloud;
+            out_player = player;
+            return true;
+        }
+    }
+    return false;
+}
+
+void test_exhale_leads_the_player() {
+    CASE("smoker: the exhale opens ahead of the player, never on the camera");
+
+    // Strafing across the smoker's face, so the lead cannot be confused with
+    // "it just aimed at itself".
+    const rv_pdklib::rv_vec3 heading{1.0f, 0.0f, 0.0f};
+    sm_cloud cloud{};
+    rv_pdklib::rv_vec3 player{};
+    CHECK(run_until_exhale(heading, cloud, player));
+
+    // It is filed as a pre-warm ring, not as live smoke.
+    CHECK(cloud.age < 0.0f);
+
+    const rv_pdklib::rv_vec3 offset = cloud.centre - player;
+    const float along = offset.x * heading.x + offset.z * heading.z;
+
+    // AHEAD. This is the whole fix: a centre on the player's own feet puts the
+    // near rim behind the near plane and the puffs on the camera, so a walking
+    // player takes chip damage from smoke that was never drawn.
+    CHECK(along > 0.5f);
+    // But short of the full windup's travel, or holding course would be a
+    // guaranteed hit and the ring would stop being a question.
+    CHECK(along < SM_PLAYER_WALK_SPEED * SM_SMOKER_WINDUP);
+    CHECK(along <= SM_CLOUD_LEAD_MAX + 0.01f);
+
+    // The lead is along the movement, not sideways: crossing ground the player
+    // never aimed at would read as the smoker missing rather than as a threat.
+    const float sideways = std::fabs(offset.z * heading.x - offset.x * heading.z);
+    CHECK(sideways < 0.35f);
+
+    // The player is still inside it at commitment — the ring is pressure, not a
+    // free pass — so the answer has to be a change of course.
+    const float from_centre = std::sqrt(offset.x * offset.x + offset.z * offset.z);
+    CHECK(from_centre < SM_CLOUD_RADIUS);
+
+    // And a player who reverses clears it: 0.85 s of walking away from a centre
+    // already 1.6 m behind them is more than the radius.
+    const float escape = SM_PLAYER_WALK_SPEED * SM_SMOKER_WINDUP + along;
+    CHECK(escape > SM_CLOUD_RADIUS);
 }
 
 void test_line_of_sight() {
@@ -512,6 +610,7 @@ int main() {
     test_utf8_decoding();
 
     test_collision_never_traps();
+    test_exhale_leads_the_player();
     test_line_of_sight();
 
     test_areas_are_buildable_at_every_tier();
