@@ -30,35 +30,35 @@ void deadzone(float x, float y, float threshold, float &out_x, float &out_y) {
 
 } // namespace
 
-bool sm_hand_right_active(const rv_pdk::rv_istate &state,
+bool sm_hand_right_active(const rv_istate &state,
                           bool allow_face_button) {
   // Kept in the signature so the keyboard fallback can come back without
   // touching every caller; the body currently answers on the triggers alone.
   (void)allow_face_button;
   if (state.right_trigger >= SM_TRIGGER_THRESHOLD)
     return true;
-  if (state.buttons & rv_pdk::RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL)
+  if (state.buttons & RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL)
     return true;
   return false;
 }
 
-bool sm_hand_left_active(const rv_pdk::rv_istate &state,
+bool sm_hand_left_active(const rv_istate &state,
                          bool allow_face_button) {
   (void)allow_face_button;
   if (state.left_trigger >= SM_TRIGGER_THRESHOLD)
     return true;
-  if (state.buttons & rv_pdk::RV_ISOURCE_LEFT_TRIGGER_SOFT_PULL)
+  if (state.buttons & RV_ISOURCE_LEFT_TRIGGER_SOFT_PULL)
     return true;
   return false;
 }
 
-void sm_input_reader::sample(rv_pdk::rv_cio *cio,
-                             const rv_pdk::rv_istate *injected, sm_input &out) {
-  rv_pdk::rv_istate state{};
+void sm_input_reader::sample(rv_cio *cio,
+                             const rv_istate *injected, sm_input &out) {
+  rv_istate state{};
   if (injected) {
     state = *injected;
   } else if (cio) {
-    state = cio->iport_state(0);
+    state = rv_cio_iport_state(cio, 0);
   }
 
   // Ask the port what it can do rather than guessing. A pad advertises its
@@ -66,9 +66,9 @@ void sm_input_reader::sample(rv_pdk::rv_cio *cio,
   // face buttons stand in for them.
   bool allow_face_button = true;
   if (cio) {
-    const uint64_t abilities = cio->iport_abilities(0);
-    const uint64_t triggers = rv_pdk::RV_ISOURCE_LEFT_TRIGGER_SOFT_PULL |
-                              rv_pdk::RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL;
+    const uint64_t abilities = rv_cio_iport_abilities(cio, 0);
+    const uint64_t triggers = RV_ISOURCE_LEFT_TRIGGER_SOFT_PULL |
+                              RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL;
     allow_face_button = (abilities & triggers) == 0;
   }
 
@@ -89,16 +89,16 @@ void sm_input_reader::sample(rv_pdk::rv_cio *cio,
   out.hand_left_released = !hand_left && previous_hand_left_;
 
   const uint64_t rising = state.buttons & ~previous_buttons_;
-  out.confirm_pressed = (rising & rv_pdk::RV_ISOURCE_FRONT_BTTN_SOUTH) != 0;
+  out.confirm_pressed = (rising & RV_ISOURCE_FRONT_BTTN_SOUTH) != 0;
   out.confirm_held =
-      (state.buttons & rv_pdk::RV_ISOURCE_FRONT_BTTN_SOUTH) != 0;
-  out.cancel_pressed = (rising & rv_pdk::RV_ISOURCE_FRONT_BTTN_EAST) != 0;
-  out.menu_pressed = (rising & rv_pdk::RV_ISOURCE_MENU_BTTN_MENU) != 0;
-  out.menu_held = (state.buttons & rv_pdk::RV_ISOURCE_MENU_BTTN_MENU) != 0;
-  out.view_pressed = (rising & rv_pdk::RV_ISOURCE_MENU_BTTN_VIEW) != 0;
-  out.view_held = (state.buttons & rv_pdk::RV_ISOURCE_MENU_BTTN_VIEW) != 0;
+      (state.buttons & RV_ISOURCE_FRONT_BTTN_SOUTH) != 0;
+  out.cancel_pressed = (rising & RV_ISOURCE_FRONT_BTTN_EAST) != 0;
+  out.menu_pressed = (rising & RV_ISOURCE_MENU_BTTN_MENU) != 0;
+  out.menu_held = (state.buttons & RV_ISOURCE_MENU_BTTN_MENU) != 0;
+  out.view_pressed = (rising & RV_ISOURCE_MENU_BTTN_VIEW) != 0;
+  out.view_held = (state.buttons & RV_ISOURCE_MENU_BTTN_VIEW) != 0;
   out.view_released = ((previous_buttons_ & ~state.buttons) &
-                       rv_pdk::RV_ISOURCE_MENU_BTTN_VIEW) != 0;
+                       RV_ISOURCE_MENU_BTTN_VIEW) != 0;
 
   out.raw_buttons = state.buttons;
   out.raw_left_trigger = state.left_trigger;

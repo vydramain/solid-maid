@@ -17,7 +17,7 @@
 
 #include <cstdint>
 
-#include "pdk/rv_pdko.hpp"
+#include "pdk/rv_pdko.h"
 
 #include "sm_common.hpp"
 #include "sm_gfx.hpp"
@@ -63,7 +63,7 @@ public:
   // Reads and uploads every texture. Returns a negative rv_err if a REQUIRED
   // texture is missing or malformed — a disc that cannot draw its own board
   // should refuse on the loading screen, not halfway through shift three.
-  int64_t load(rv_pdk::rv_pdko &pdk);
+  int64_t load(rv_pdko *pdk);
   void unload();
 
   // The texture with the palette for `tier` (0 = shift 5, brightest; 5 = the
@@ -83,7 +83,7 @@ private:
     bool tiered = false;
   };
 
-  rv_pdk::rv_pdko *pdk_ = nullptr;
+  rv_pdko *pdk_ = nullptr;
   sm_tex_slot slots_[SM_TEX_COUNT]{};
   int64_t video_bytes_ = 0;
   int missing_ = 0;

@@ -2,7 +2,7 @@
 
 #include <cstring>
 
-#include "pdk/rv_err.hpp"
+#include "pdk/rv_err.h"
 
 namespace solidmaid {
 namespace {
@@ -103,31 +103,31 @@ bool sm_save_decode(const uint8_t data[SM_SAVE_BYTES], sm_countdown &out) {
   return true;
 }
 
-bool sm_save_store(rv_pdk::rv_cm *cm, const sm_countdown &state) {
+bool sm_save_store(rv_cm *cm, const sm_countdown &state) {
   if (!cm)
     return false;
-  if (cm->card_slots() <= SM_SAVE_SLOT)
+  if (rv_cm_card_slots(cm) <= SM_SAVE_SLOT)
     return false;
-  if (cm->card_slot_size() < SM_SAVE_BYTES)
+  if (rv_cm_card_slot_size(cm) < SM_SAVE_BYTES)
     return false;
 
   uint8_t blob[SM_SAVE_BYTES];
   sm_save_encode(state, blob);
-  return cm->card_write(SM_SAVE_SLOT, blob, SM_SAVE_BYTES) >= 0;
+  return rv_cm_card_write(cm, SM_SAVE_SLOT, blob, SM_SAVE_BYTES) >= 0;
 }
 
-bool sm_save_load(rv_pdk::rv_cm *cm, sm_countdown &out) {
+bool sm_save_load(rv_cm *cm, sm_countdown &out) {
   if (!cm)
     return false;
-  if (cm->card_slots() <= SM_SAVE_SLOT)
+  if (rv_cm_card_slots(cm) <= SM_SAVE_SLOT)
     return false;
 
-  const int64_t size = cm->card_size(SM_SAVE_SLOT);
+  const int64_t size = rv_cm_card_size(cm, SM_SAVE_SLOT);
   if (size < SM_SAVE_BYTES)
     return false;
 
   uint8_t blob[SM_SAVE_BYTES];
-  if (cm->card_read(SM_SAVE_SLOT, blob, SM_SAVE_BYTES) < 0)
+  if (rv_cm_card_read(cm, SM_SAVE_SLOT, blob, SM_SAVE_BYTES) < 0)
     return false;
   return sm_save_decode(blob, out);
 }

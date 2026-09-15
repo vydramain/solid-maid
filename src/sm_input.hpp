@@ -27,7 +27,7 @@
 
 #include <cstdint>
 
-#include "pdk/cio/rv_cio.hpp"
+#include "pdk/cio/rv_cio.h"
 
 namespace solidmaid {
 
@@ -79,7 +79,7 @@ public:
   // Reads port 0. `injected` overrides the pad entirely when non-null — that
   // is how the test harness drives a real playthrough through the real game
   // code without a physical controller attached.
-  void sample(rv_pdk::rv_cio *cio, const rv_pdk::rv_istate *injected,
+  void sample(rv_cio *cio, const rv_istate *injected,
               sm_input &out);
 
 private:
@@ -92,9 +92,9 @@ private:
 // through exactly the same interpretation as a physical one.
 // `allow_face_button` is false whenever the port has real triggers — see the
 // note above.
-bool sm_hand_right_active(const rv_pdk::rv_istate &state,
+bool sm_hand_right_active(const rv_istate &state,
                           bool allow_face_button);
-bool sm_hand_left_active(const rv_pdk::rv_istate &state,
+bool sm_hand_left_active(const rv_istate &state,
                          bool allow_face_button);
 
 } // namespace solidmaid

@@ -26,7 +26,7 @@ namespace {
 
 using rv_pdklib::rv_vec3;
 
-constexpr rv_pdk::rv_color WHITE{255, 255, 255};
+constexpr rv_color WHITE{255, 255, 255};
 
 // ── the route
 // ─────────────────────────────────────────────────────────────────
@@ -150,7 +150,7 @@ void sm_build_street(sm_scene &out, const sm_countdown &state) {
   out.draws_sky = true;
   // Flat overcast is the ambient floor's justification: it is why the street is
   // never pitch black, on any tier, the final lap included.
-  out.clear_colour = rv_pdk::rv_color{30, 34, 42};
+  out.clear_colour = rv_color{30, 34, 42};
 
   // Out of the entrance, facing straight down the lane. There is exactly one
   // direction to walk and the route never branches.

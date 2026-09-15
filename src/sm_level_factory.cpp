@@ -28,9 +28,9 @@ namespace {
 
 using rv_pdklib::rv_vec3;
 
-constexpr rv_pdk::rv_color WHITE{255, 255, 255};
+constexpr rv_color WHITE{255, 255, 255};
 // The painted walkway. Untextured, so it never passes through a tier palette.
-constexpr rv_pdk::rv_color LINE_YELLOW{214, 186, 52};
+constexpr rv_color LINE_YELLOW{214, 186, 52};
 
 constexpr float HALL_X = 12.0f; // 24 m across
 constexpr float HALL_Z0 = 0.0f;
@@ -127,7 +127,7 @@ void sm_build_factory(sm_scene &out, const sm_countdown &state) {
   out.draws_sky = false;
   // The shop is always the best-lit space in the game and it dims LESS per tier
   // than the street does: the factory keeps its light while the town loses it.
-  out.clear_colour = rv_pdk::rv_color{38, 40, 42};
+  out.clear_colour = rv_color{38, 40, 42};
 
   // In the doorway, facing the board.
   out.player_start = rv_vec3{0.0f, 0.0f, 1.60f};

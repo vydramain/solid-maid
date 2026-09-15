@@ -25,7 +25,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "pdk/rv_pdko.hpp"
+#include "pdk/rv_pdko.h"
 
 namespace solidmaid {
 
@@ -92,7 +92,7 @@ public:
   // counted, never fatal: the game is designed to be finishable in silence
   // (every telegraph and every confirmation has a visual half), so a broken
   // audio bank must not stop somebody playing.
-  int64_t load(rv_pdk::rv_pdko &pdk);
+  int64_t load(rv_pdko *pdk);
   void unload();
 
   bool ready() const { return ca_ != nullptr; }
@@ -157,8 +157,8 @@ private:
                     bool music);
   int64_t free_effect_voice();
 
-  rv_pdk::rv_pdko *pdk_ = nullptr;
-  rv_pdk::rv_ca *ca_ = nullptr;
+  rv_pdko *pdk_ = nullptr;
+  rv_ca *ca_ = nullptr;
 
   int64_t effects_[SM_SFX_COUNT] = {};
   // The two regions the three footstep surfaces take turns living in.

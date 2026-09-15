@@ -8,11 +8,11 @@
 // The last line of the file is what makes this a disc rather than a library.
 #include <cstdint>
 
-#include "pdk/cio/rv_cio.hpp"
-#include "pdk/cv/rv_cv.hpp"
-#include "pdk/de/rv_de.hpp"
-#include "pdk/rv_abi.hpp"
-#include "pdk/rv_err.hpp"
+#include "pdk/cio/rv_cio.h"
+#include "pdk/cv/rv_cv.h"
+#include "pdk/de/rv_de.h"
+#include "pdk/de/rv_dv.h"
+#include "pdk/rv_err.h"
 
 #include "sm_assets.hpp"
 #include "sm_common.hpp"
@@ -23,19 +23,19 @@
 
 namespace solidmaid {
 
-class rv_dmain : public rv_pdk::rv_de {
+class rv_dmain {
 public:
-  int64_t disc_initialize(rv_pdk::rv_pdko &pdk) override;
-  void frame_update(float dt) override;
-  void frame_render() override;
-  bool disc_release() const override { return release_; }
-  void disc_shutdown() override;
-  const char *disc_title() const override {
+  int64_t disc_initialize(rv_pdko *pdk);
+  void frame_update(float dt);
+  void frame_render();
+  bool disc_release() const { return release_; }
+  void disc_shutdown();
+  const char *disc_title() const {
     return "Solidmaid: Alkoldun Vasiliusavich";
   }
 
 private:
-  rv_pdk::rv_pdko *pdk_ = nullptr;
+  rv_pdko *pdk_ = nullptr;
   sm_assets assets_;
   sm_gfx gfx_;
   sm_input_reader reader_;
@@ -45,27 +45,27 @@ private:
   bool initialized_ = false;
 };
 
-int64_t rv_dmain::disc_initialize(rv_pdk::rv_pdko &pdk) {
-  pdk_ = &pdk;
+int64_t rv_dmain::disc_initialize(rv_pdko *pdk) {
+  pdk_ = pdk;
 
-  rv_pdk::rv_cv *cv = pdk.cv();
-  rv_pdk::rv_cio *cio = pdk.cio();
+  rv_cv *cv = rv_pdko_cv(pdk);
+  rv_cio *cio = rv_pdko_cio(pdk);
   if (!cv || !cio)
-    return rv_pdk::RV_ERR_INVAL;
+    return RV_ERR_INVAL;
 
-  const int64_t width = cv->screen_width();
-  const int64_t height = cv->screen_height();
-  const int64_t capacity = cv->frame_capacity();
+  const int64_t width = rv_cv_screen_width(cv);
+  const int64_t height = rv_cv_screen_height(cv);
+  const int64_t capacity = rv_cv_frame_capacity(cv);
 
   // Validate the baked assumptions against the machine that turned up, HERE,
   // rather than discovering them as garbage half a second into play. The
   // numbers are the ones docs/gameplay.md was designed against.
   if (width < 256 || height < 200)
-    return rv_pdk::RV_ERR_INVAL;
+    return RV_ERR_INVAL;
   if (capacity < 1024)
-    return rv_pdk::RV_ERR_INVAL;
-  if (cio->iport_count() < 1)
-    return rv_pdk::RV_ERR_INVAL;
+    return RV_ERR_INVAL;
+  if (rv_cio_iport_count(cio) < 1)
+    return RV_ERR_INVAL;
 
   const int64_t rc = assets_.load(pdk);
   if (rc < 0)
@@ -80,7 +80,7 @@ int64_t rv_dmain::disc_initialize(rv_pdk::rv_pdko &pdk) {
   game_.initialize(pdk, assets_, gfx_, sound_);
 
   initialized_ = true;
-  return rv_pdk::RV_OK;
+  return RV_OK;
 }
 
 void rv_dmain::frame_update(float dt) {
@@ -88,7 +88,7 @@ void rv_dmain::frame_update(float dt) {
     return;
 
   sm_input input{};
-  reader_.sample(pdk_->cio(), game_.injected_pad(), input);
+  reader_.sample(rv_pdko_cio(pdk_), game_.injected_pad(), input);
 
   game_.update(input, dt);
   if (game_.wants_release())
@@ -116,4 +116,4 @@ void rv_dmain::disc_shutdown() {
 
 } // namespace solidmaid
 
-RV_DISC_EXPORT(solidmaid::rv_dmain)
+RV_MPPC_DISC_ENTRY_DEF(solidmaid::rv_dmain)

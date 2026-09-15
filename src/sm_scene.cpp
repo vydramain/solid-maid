@@ -118,8 +118,8 @@ uint8_t scale_channel(uint8_t value, float k) {
   return static_cast<uint8_t>(v);
 }
 
-rv_pdk::rv_color shade(rv_pdk::rv_color colour, float k) {
-  return rv_pdk::rv_color{scale_channel(colour.r, k),
+rv_color shade(rv_color colour, float k) {
+  return rv_color{scale_channel(colour.r, k),
                           scale_channel(colour.g, k),
                           scale_channel(colour.b, k)};
 }
@@ -159,8 +159,8 @@ void draw_sky(sm_gfx &gfx, int tier) {
   // The sky IS the ambient floor's justification, which is why it is shaded per
   // tier here rather than through a palette: it is untextured geometry.
   const float k = tier_scale(tier);
-  const rv_pdk::rv_color horizon = shade(rv_pdk::rv_color{62, 66, 74}, k);
-  const rv_pdk::rv_color zenith = shade(rv_pdk::rv_color{27, 31, 44}, k);
+  const rv_color horizon = shade(rv_color{62, 66, 74}, k);
+  const rv_color zenith = shade(rv_color{27, 31, 44}, k);
 
   const rv_vec3 eye = gfx.view().eye;
   const float r = SM_SKY_RADIUS;
@@ -176,7 +176,7 @@ void draw_sky(sm_gfx &gfx, int tier) {
         rv_vec3{eye.x + px[i + 1], top, eye.z + pz[i + 1]},
         rv_vec3{eye.x + px[i], bottom, eye.z + pz[i]},
         rv_vec3{eye.x + px[i + 1], bottom, eye.z + pz[i + 1]}};
-    const rv_pdk::rv_color colours[4] = {zenith, zenith, horizon, horizon};
+    const rv_color colours[4] = {zenith, zenith, horizon, horizon};
     gfx.quad_shaded(corners, colours, SM_SKY_TESS);
   }
 
@@ -184,7 +184,7 @@ void draw_sky(sm_gfx &gfx, int tier) {
   const rv_vec3 lid[4] = {
       rv_vec3{eye.x - r, top, eye.z + r}, rv_vec3{eye.x + r, top, eye.z + r},
       rv_vec3{eye.x - r, top, eye.z - r}, rv_vec3{eye.x + r, top, eye.z - r}};
-  const rv_pdk::rv_color lid_colours[4] = {zenith, zenith, zenith, zenith};
+  const rv_color lid_colours[4] = {zenith, zenith, zenith, zenith};
   gfx.quad_shaded(lid, lid_colours, SM_SKY_TESS * 1.5f);
 }
 
@@ -219,7 +219,7 @@ void draw_light_pool(sm_gfx &gfx, const sm_assets &assets, rv_vec3 centre) {
   // polygon near rejection would make the pool blink out underfoot.
   // Biased toward the eye so the pool never trades places with the road it
   // lies on — see sm_gfx::quad.
-  gfx.quad(corners, pool, SM_UV_LIGHT_POOL, rv_pdk::rv_color{255, 255, 255},
+  gfx.quad(corners, pool, SM_UV_LIGHT_POOL, rv_color{255, 255, 255},
            2.2f, SM_DEPTH_BIAS_DECAL);
 }
 
@@ -233,7 +233,7 @@ void draw_lamp(sm_gfx &gfx, const sm_assets &assets, int tier,
   const float z = lamp.base.z;
   const float y0 = lamp.base.y;
   const float y1 = y0 + SM_LAMP_HEIGHT;
-  const rv_pdk::rv_color white{255, 255, 255};
+  const rv_color white{255, 255, 255};
 
   // Two crossed cards for the concrete pole: it reads as a pole from every
   // angle for four primitives instead of the twenty a real prism would cost.
@@ -249,8 +249,8 @@ void draw_lamp(sm_gfx &gfx, const sm_assets &assets, int tier,
     gfx.quad(pole_a, tex, SM_UV_LAMP_POLE, white, 4.0f);
     gfx.quad(pole_b, tex, SM_UV_LAMP_POLE, white, 4.0f);
   } else {
-    const rv_pdk::rv_color concrete =
-        shade(rv_pdk::rv_color{104, 104, 100}, tier_scale(tier));
+    const rv_color concrete =
+        shade(rv_color{104, 104, 100}, tier_scale(tier));
     gfx.quad_flat(pole_a, concrete, 4.0f);
     gfx.quad_flat(pole_b, concrete, 4.0f);
   }
@@ -262,7 +262,7 @@ void draw_lamp(sm_gfx &gfx, const sm_assets &assets, int tier,
   if (tex.valid()) {
     gfx.quad(arm, tex, SM_UV_LAMP_BRACKET, white, 4.0f);
   } else {
-    gfx.quad_flat(arm, rv_pdk::rv_color{72, 74, 70}, 4.0f);
+    gfx.quad_flat(arm, rv_color{72, 74, 70}, 4.0f);
   }
 
   const rv_vec3 head_centre{arm_x, y1 - SM_LAMP_ARM_DROP, z};
@@ -301,12 +301,12 @@ void sm_scene::clear() {
   player_yaw = 0.0f;
   floor_y = 0.0f;
   ceiling_y = 2.5f;
-  clear_colour = rv_pdk::rv_color{18, 20, 26};
+  clear_colour = rv_color{18, 20, 26};
   draws_sky = false;
 }
 
 void sm_scene::add_floor(float x0, float z0, float x1, float z1, float y,
-                         sm_tex_id tex, sm_uvrect uv, rv_pdk::rv_color tint,
+                         sm_tex_id tex, sm_uvrect uv, rv_color tint,
                          float tess) {
   if (x1 < x0) {
     const float t = x0;
@@ -335,7 +335,7 @@ void sm_scene::add_floor(float x0, float z0, float x1, float z1, float y,
 }
 
 void sm_scene::add_ceiling(float x0, float z0, float x1, float z1, float y,
-                           sm_tex_id tex, sm_uvrect uv, rv_pdk::rv_color tint,
+                           sm_tex_id tex, sm_uvrect uv, rv_color tint,
                            float tess) {
   if (x1 < x0) {
     const float t = x0;
@@ -364,7 +364,7 @@ void sm_scene::add_ceiling(float x0, float z0, float x1, float z1, float y,
 
 void sm_scene::add_wall(float x0, float z0, float x1, float z1, float y0,
                         float y1, sm_tex_id tex, sm_uvrect uv,
-                        rv_pdk::rv_color tint, bool solid, float tess) {
+                        rv_color tint, bool solid, float tess) {
   if (y1 < y0) {
     const float t = y0;
     y0 = y1;
@@ -388,7 +388,7 @@ void sm_scene::add_wall(float x0, float z0, float x1, float z1, float y0,
 
 void sm_scene::add_box(float x0, float z0, float x1, float z1, float y0,
                        float y1, sm_tex_id tex, sm_uvrect uv,
-                       rv_pdk::rv_color tint, bool solid, float tess) {
+                       rv_color tint, bool solid, float tess) {
   if (x1 < x0) {
     const float t = x0;
     x0 = x1;

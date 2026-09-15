@@ -479,7 +479,7 @@ void sm_combat::render(sm_gfx &gfx, const sm_assets &assets, int tier) const {
   // No tint: SAMPLE_TEXTURE replaces the vertex colour on this console, so a
   // tint on a textured draw is a lie. The brick darkens with the tier through
   // its PALETTE, which is what assets.ref(..., tier) just handed us.
-  const rv_pdk::rv_color plain{255, 255, 255};
+  const rv_color plain{255, 255, 255};
 
   for (const sm_brick &brick : bricks_) {
     if (!brick.alive)

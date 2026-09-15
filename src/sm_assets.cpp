@@ -3,9 +3,9 @@
 #include <cstring>
 #include <vector>
 
-#include "pdk/cd/rv_cd.hpp"
-#include "pdk/cv/rv_texture.hpp"
-#include "pdk/rv_err.hpp"
+#include "pdk/cd/rv_cd.h"
+#include "pdk/cv/rv_texture.h"
+#include "pdk/rv_err.h"
 
 namespace solidmaid {
 namespace {
@@ -84,21 +84,21 @@ void write_u16(uint8_t *p, uint16_t value) {
   p[1] = static_cast<uint8_t>((value >> 8) & 0xFF);
 }
 
-bool read_resource(rv_pdk::rv_cd *cd, const char *name,
+bool read_resource(rv_cd *cd, const char *name,
                    std::vector<uint8_t> &out) {
   if (!cd)
     return false;
-  const int64_t handle = cd->asset_open(name);
+  const int64_t handle = rv_cd_asset_open(cd, name);
   if (handle < 0)
     return false;
-  const int64_t size = cd->asset_size(handle);
+  const int64_t size = rv_cd_asset_size(cd, handle);
   if (size < 0)
     return false;
 
   out.assign(static_cast<std::size_t>(size), 0);
   // asset_read's return value is the authoritative length; asset_size is a
   // hint that may go stale between the two calls (pdk/cd/rv_cd.hpp).
-  const int64_t read = cd->asset_read(handle, out.data(), size);
+  const int64_t read = rv_cd_asset_read(cd, handle, out.data(), size);
   if (read < 0)
     return false;
   out.resize(static_cast<std::size_t>(read));
@@ -173,15 +173,15 @@ uint16_t sm_palette_tier_entry(uint16_t entry, int tier) {
   return packed;
 }
 
-int64_t sm_assets::load(rv_pdk::rv_pdko &pdk) {
-  pdk_ = &pdk;
-  rv_pdk::rv_cv *cv = pdk.cv();
-  rv_pdk::rv_cd *cd = pdk.cd();
+int64_t sm_assets::load(rv_pdko *pdk) {
+  pdk_ = pdk;
+  rv_cv *cv = rv_pdko_cv(pdk);
+  rv_cd *cd = rv_pdko_cd(pdk);
   if (!cv || !cd)
-    return rv_pdk::RV_ERR_INVAL;
+    return RV_ERR_INVAL;
 
-  const int64_t max_w = cv->texture_max_width();
-  const int64_t max_h = cv->texture_max_height();
+  const int64_t max_w = rv_cv_texture_max_width(cv);
+  const int64_t max_h = rv_cv_texture_max_height(cv);
 
   std::vector<uint8_t> bytes;
   std::vector<uint8_t> palette_bytes;
@@ -205,9 +205,9 @@ int64_t sm_assets::load(rv_pdk::rv_pdko &pdk) {
     // and are not mean the pipeline is broken, and guessing past that ships
     // garbage geometry instead of a clear failure on the loading screen.
     if (bytes.size() < 16 || std::memcmp(bytes.data(), "MPTX", 4) != 0)
-      return rv_pdk::RV_ERR_INVAL;
+      return RV_ERR_INVAL;
     if (read_u16(bytes.data() + 4) != 1)
-      return rv_pdk::RV_ERR_INVAL;
+      return RV_ERR_INVAL;
 
     const uint16_t format = read_u16(bytes.data() + 6);
     const uint16_t width = read_u16(bytes.data() + 8);
@@ -215,12 +215,12 @@ int64_t sm_assets::load(rv_pdk::rv_pdko &pdk) {
     const uint16_t palette_count = read_u16(bytes.data() + 12);
 
     if (width == 0 || height == 0)
-      return rv_pdk::RV_ERR_INVAL;
+      return RV_ERR_INVAL;
     // Validate the baked assumption against the machine that turned up,
     // here on the loading screen (pdk/de/rv_de.hpp).
     if (static_cast<int64_t>(width) > max_w ||
         static_cast<int64_t>(height) > max_h) {
-      return rv_pdk::RV_ERR_INVAL;
+      return RV_ERR_INVAL;
     }
 
     const std::size_t palette_offset = 16;
@@ -228,23 +228,23 @@ int64_t sm_assets::load(rv_pdk::rv_pdko &pdk) {
         static_cast<std::size_t>(palette_count) * 2;
     const std::size_t texel_offset = palette_offset + palette_size;
     if (bytes.size() < texel_offset)
-      return rv_pdk::RV_ERR_INVAL;
+      return RV_ERR_INVAL;
     const std::size_t texel_size = bytes.size() - texel_offset;
 
     const int64_t addr =
-        cv->video_asset_malloc(static_cast<int64_t>(texel_size));
+        rv_cv_video_asset_malloc(cv, static_cast<int64_t>(texel_size));
     if (addr < 0)
       return addr;
 
-    rv_pdk::rv_texture texels{};
-    texels.format = static_cast<rv_pdk::rv_texfmt>(format);
+    rv_texture texels{};
+    texels.format = static_cast<rv_texfmt>(format);
     texels.data = bytes.data() + texel_offset;
     texels.size = texel_size;
     texels.width = width;
     texels.height = height;
-    const int64_t rc = cv->video_asset_write(addr, texels);
+    const int64_t rc = rv_cv_video_asset_write(cv, addr, &texels);
     if (rc < 0) {
-      cv->video_asset_free(addr);
+      rv_cv_video_asset_free(cv, addr);
       return rc;
     }
     slot.texels = addr;
@@ -268,19 +268,19 @@ int64_t sm_assets::load(rv_pdk::rv_pdko &pdk) {
       }
 
       const int64_t paddr =
-          cv->video_asset_malloc(static_cast<int64_t>(palette_size));
+          rv_cv_video_asset_malloc(cv, static_cast<int64_t>(palette_size));
       if (paddr < 0)
         return paddr;
 
-      rv_pdk::rv_texture clut{};
-      clut.format = rv_pdk::RV_TEXFMT_DIRECT15;
+      rv_texture clut{};
+      clut.format = RV_TEXFMT_DIRECT15;
       clut.data = palette_bytes.data();
       clut.size = palette_size;
       clut.width = palette_count;
       clut.height = 1;
-      const int64_t prc = cv->video_asset_write(paddr, clut);
+      const int64_t prc = rv_cv_video_asset_write(cv, paddr, &clut);
       if (prc < 0) {
-        cv->video_asset_free(paddr);
+        rv_cv_video_asset_free(cv, paddr);
         return prc;
       }
       slot.palettes[tier] = paddr;
@@ -292,26 +292,26 @@ int64_t sm_assets::load(rv_pdk::rv_pdko &pdk) {
     }
   }
 
-  return rv_pdk::RV_OK;
+  return RV_OK;
 }
 
 void sm_assets::unload() {
   if (!pdk_)
     return;
-  rv_pdk::rv_cv *cv = pdk_->cv();
+  rv_cv *cv = rv_pdko_cv(pdk_);
   if (!cv)
     return;
 
   for (int i = 0; i < SM_TEX_COUNT; ++i) {
     sm_tex_slot &slot = slots_[i];
     if (slot.texels != 0)
-      cv->video_asset_free(slot.texels);
+      rv_cv_video_asset_free(cv, slot.texels);
     slot.texels = 0;
 
     const int tiers = slot.tiered ? SM_TIER_COUNT : 1;
     for (int tier = 0; tier < tiers; ++tier) {
       if (slot.palettes[tier] != 0)
-        cv->video_asset_free(slot.palettes[tier]);
+        rv_cv_video_asset_free(cv, slot.palettes[tier]);
     }
     for (int tier = 0; tier < SM_TIER_COUNT; ++tier)
       slot.palettes[tier] = 0;

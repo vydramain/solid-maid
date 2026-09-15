@@ -12,7 +12,7 @@
 //     modest cone plus a slowdown as the crosshair crosses a target.
 #pragma once
 
-#include "pdklib/rv_math.hpp"
+#include "pdklib/rv_math/rv_math.hpp"
 
 #include "sm_combat.hpp"
 #include "sm_common.hpp"

@@ -37,10 +37,10 @@
 
 #include <cstdint>
 
-#include "pdk/cv/rv_cv.hpp"
-#include "pdklib/rv_camera.hpp"
-#include "pdklib/rv_math.hpp"
-#include "pdklib/rv_xform.hpp"
+#include "pdk/cv/rv_cv.h"
+#include "pdklib/rv_camera/rv_camera.hpp"
+#include "pdklib/rv_math/rv_math.hpp"
+#include "pdklib/rv_math/rv_xform.hpp"
 
 #include "sm_common.hpp"
 
@@ -84,7 +84,7 @@ rv_pdklib::rv_vec3 sm_right(float yaw);
 class sm_gfx {
 public:
   // Bind the controller and cache the geometry the disc validated at boot.
-  void attach(rv_pdk::rv_cv *cv, int64_t screen_width, int64_t screen_height,
+  void attach(rv_cv *cv, int64_t screen_width, int64_t screen_height,
               int64_t frame_capacity);
 
   // `far_plane` is the area's own, not a global: the ordering-table key is
@@ -94,7 +94,7 @@ public:
   // matches its size is what gives the apartment the resolution it needs — and
   // it is a budget decision, not a darkness one: nothing in any area is beyond
   // its own far plane, so no route landmark is ever clipped away.
-  void begin(const sm_view &view, rv_pdk::rv_color clear_color,
+  void begin(const sm_view &view, rv_color clear_color,
              float far_plane = SM_FAR_PLANE);
   void end();
 
@@ -115,11 +115,11 @@ public:
   // moves. Lifting the decal geometrically cannot fix that — the KEY is what is
   // quantised, so the key is what has to move.
   void quad(const rv_pdklib::rv_vec3 corners[4], sm_texref texture,
-            sm_uvrect uv, rv_pdk::rv_color tint, float tess_metres = 2.0f,
+            sm_uvrect uv, rv_color tint, float tess_metres = 2.0f,
             int32_t depth_bias = 0);
 
   // Same, untextured and one colour.
-  void quad_flat(const rv_pdklib::rv_vec3 corners[4], rv_pdk::rv_color tint,
+  void quad_flat(const rv_pdklib::rv_vec3 corners[4], rv_color tint,
                  float tess_metres = 2.0f);
 
   // Untextured with a colour per corner, interpolated across the surface.
@@ -129,32 +129,32 @@ public:
   // the dark. Colours are interpolated per sub-quad, so tessellation controls
   // how smooth the gradient is.
   void quad_shaded(const rv_pdklib::rv_vec3 corners[4],
-                   const rv_pdk::rv_color colours[4], float tess_metres = 2.0f);
+                   const rv_color colours[4], float tess_metres = 2.0f);
 
   // An axis-aligned camera-facing card at a world point: enemies, props seen
   // from any angle, the smoke cloud, the pre-warm ring, light pools.
   void billboard(rv_pdklib::rv_vec3 centre, float half_width, float half_height,
-                 sm_texref texture, sm_uvrect uv, rv_pdk::rv_color tint);
+                 sm_texref texture, sm_uvrect uv, rv_color tint);
 
   // A ground decal — a horizontal card at a fixed height, used for the lamp
   // pools and the assembly glow. Drawn slightly above its floor so the
   // ordering table does not flicker it against the surface underneath.
   void decal_ground(rv_pdklib::rv_vec3 centre, float half_size, float y,
-                    sm_texref texture, sm_uvrect uv, rv_pdk::rv_color tint);
+                    sm_texref texture, sm_uvrect uv, rv_color tint);
 
   // A world-space line, for telegraph rings and debug shapes.
   void line3(rv_pdklib::rv_vec3 a, rv_pdklib::rv_vec3 b,
-             rv_pdk::rv_color colour);
+             rv_color colour);
 
   // ── screen space ──────────────────────────────────────────────────────────
 
-  void sprite(int x, int y, int w, int h, rv_pdk::rv_color colour,
+  void sprite(int x, int y, int w, int h, rv_color colour,
               int32_t depth);
   void sprite_tex(int x, int y, int w, int h, sm_texref texture, sm_uvrect uv,
-                  rv_pdk::rv_color tint, int32_t depth);
+                  rv_color tint, int32_t depth);
   // A textured screen quad with explicit corners, for the view model's small
   // amount of skew and swing.
-  void quad2d(const rv_pdk::rv_vertex corners[4], sm_texref texture,
+  void quad2d(const rv_vertex corners[4], sm_texref texture,
               int32_t depth);
 
   // ── queries ───────────────────────────────────────────────────────────────
@@ -175,18 +175,18 @@ public:
   int capacity() const { return static_cast<int>(frame_capacity_); }
 
 private:
-  bool put(const rv_pdk::rv_primitive &primitive);
-  void quad_raw(const rv_pdklib::rv_vec3 corners[4], const rv_pdk::rv_uv uv[4],
-                sm_texref texture, rv_pdk::rv_color tint, bool textured,
+  bool put(const rv_primitive &primitive);
+  void quad_raw(const rv_pdklib::rv_vec3 corners[4], const rv_uv uv[4],
+                sm_texref texture, rv_color tint, bool textured,
                 int32_t depth_bias = 0);
   // Transform, CLIP against the near plane, and file. Every world-space
   // surface in the game ends up here; see the theorem in sm_gfx.cpp.
   void emit_surface(const rv_pdklib::rv_vec3 corners[4],
-                    const rv_pdk::rv_color colours[4],
-                    const rv_pdk::rv_uv uv[4], sm_texref texture, bool textured,
+                    const rv_color colours[4],
+                    const rv_uv uv[4], sm_texref texture, bool textured,
                     int32_t depth_bias = 0);
 
-  rv_pdk::rv_cv *cv_ = nullptr;
+  rv_cv *cv_ = nullptr;
   int64_t screen_width_ = 0;
   int64_t screen_height_ = 0;
   int64_t frame_capacity_ = 0;

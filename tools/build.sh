@@ -20,7 +20,7 @@ set -euo pipefail
 DISC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MPPC_ROOT="${MPPC_ROOT:-/home/vydra/Repositories/vydramain/3dmppc-polymer}"
 
-CONSOLE="$MPPC_ROOT/build/3dmppc"
+CONSOLE="$MPPC_ROOT/build/pconsole/3dmppc"
 BURNER="$MPPC_ROOT/pdk/tools/build/mppcburner/mppcburner"
 BAKER="$MPPC_ROOT/pdk/tools/build/mppcbaker/mppcbaker"
 OUT_DIR="$DISC_DIR/build"
@@ -51,7 +51,7 @@ case "${1:-}" in
     smoke)
         frames="${2:-240}"
         echo "== headless smoke test, $frames frames =="
-        exec "$CONSOLE" --headless --fixed-step --frames "$frames" \
+        exec "$CONSOLE" --mode=headless --fixed-step --frames "$frames" \
             --memcard "$OUT_DIR/harness.mppccard" \
             --dump-frame "$OUT_DIR/frame.ppm" "$DISC"
         ;;
@@ -62,7 +62,7 @@ case "${1:-}" in
         # leaves a half-finished shift behind is a save the next real session
         # silently resumes into.
         rm -f "$OUT_DIR/harness.mppccard"
-        SOLIDMAID_AUTOPILOT=1 exec "$CONSOLE" --headless --fixed-step --frames "$frames" \
+        SOLIDMAID_AUTOPILOT=1 exec "$CONSOLE" --mode=headless --fixed-step --frames "$frames" \
             --memcard "$OUT_DIR/harness.mppccard" \
             --dump-frame "$OUT_DIR/frame.ppm" "$DISC"
         ;;

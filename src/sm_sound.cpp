@@ -1,8 +1,8 @@
 #include "sm_sound.hpp"
 
-#include "pdk/ca/rv_ca.hpp"
-#include "pdk/cd/rv_cd.hpp"
-#include "pdk/rv_err.hpp"
+#include "pdk/ca/rv_ca.h"
+#include "pdk/cd/rv_cd.h"
+#include "pdk/rv_err.h"
 
 namespace solidmaid {
 namespace {
@@ -173,43 +173,43 @@ int16_t scale_volume(int16_t base, float k) {
 } // namespace
 
 bool sm_sound::upload(const char *resource, int64_t address, int64_t capacity) {
-  rv_pdk::rv_cd *cd = pdk_ ? pdk_->cd() : nullptr;
+  rv_cd *cd = pdk_ ? rv_pdko_cd(pdk_) : nullptr;
   if (!cd || !ca_)
     return false;
 
-  const int64_t handle = cd->asset_open(resource);
+  const int64_t handle = rv_cd_asset_open(cd, resource);
   if (handle < 0)
     return false;
-  const int64_t size = cd->asset_size(handle);
+  const int64_t size = rv_cd_asset_size(cd, handle);
   if (size <= 0 || size > capacity)
     return false;
 
   scratch_.assign(static_cast<std::size_t>(size), 0);
   // asset_read's return is the authoritative length; asset_size is a hint that
   // may go stale between the two calls (pdk/cd/rv_cd.hpp).
-  const int64_t read = cd->asset_read(handle, scratch_.data(), size);
+  const int64_t read = rv_cd_asset_read(cd, handle, scratch_.data(), size);
   if (read <= 0)
     return false;
 
-  rv_pdk::rv_sample sample{};
+  rv_sample sample{};
   sample.data = scratch_.data();
   sample.size = read;
-  return ca_->sound_asset_write(address, &sample) >= 0;
+  return rv_ca_sound_asset_write(ca_, address, &sample) >= 0;
 }
 
-int64_t sm_sound::load(rv_pdk::rv_pdko &pdk) {
-  pdk_ = &pdk;
-  ca_ = pdk.ca();
-  rv_pdk::rv_cd *cd = pdk.cd();
+int64_t sm_sound::load(rv_pdko *pdk) {
+  pdk_ = pdk;
+  ca_ = rv_pdko_ca(pdk);
+  rv_cd *cd = rv_pdko_cd(pdk);
   if (!ca_)
-    return rv_pdk::RV_ERR_INVAL;
+    return RV_ERR_INVAL;
 
   // MUSIC SLOTS FIRST, then the step slots, then the fixed samples. Order is
   // not arbitrary: the rewritable regions are the ones whose CONTENTS change,
   // and putting them at the bottom keeps the pool's one allocation pass in the
   // order the pool grows. Nothing here is ever freed, so it never fragments.
   for (int i = 0; i < 2; ++i) {
-    const int64_t address = ca_->sound_asset_malloc(SM_BAR_BYTES);
+    const int64_t address = rv_ca_sound_asset_malloc(ca_, SM_BAR_BYTES);
     if (address < 0) {
       ++missing_;
       continue;
@@ -229,10 +229,10 @@ int64_t sm_sound::load(rv_pdk::rv_pdko &pdk) {
       const sm_sfx id = SM_STEPS_OF_AREA[surface][variant];
       if (!cd)
         break;
-      const int64_t handle = cd->asset_open(SM_EFFECTS[id].resource);
+      const int64_t handle = rv_cd_asset_open(cd, SM_EFFECTS[id].resource);
       if (handle < 0)
         continue;
-      const int64_t size = cd->asset_size(handle);
+      const int64_t size = rv_cd_asset_size(cd, handle);
       if (size > largest)
         largest = size;
     }
@@ -240,7 +240,7 @@ int64_t sm_sound::load(rv_pdk::rv_pdko &pdk) {
       ++missing_;
       continue;
     }
-    const int64_t address = ca_->sound_asset_malloc(largest);
+    const int64_t address = rv_ca_sound_asset_malloc(ca_, largest);
     if (address < 0) {
       ++missing_;
       continue;
@@ -255,23 +255,23 @@ int64_t sm_sound::load(rv_pdk::rv_pdko &pdk) {
   for (int i = 0; i < SM_SFX_COUNT; ++i) {
     if (is_step(i) || !cd)
       continue;
-    const int64_t handle = cd->asset_open(SM_EFFECTS[i].resource);
+    const int64_t handle = rv_cd_asset_open(cd, SM_EFFECTS[i].resource);
     if (handle < 0) {
       ++missing_;
       continue;
     }
-    const int64_t size = cd->asset_size(handle);
+    const int64_t size = rv_cd_asset_size(cd, handle);
     if (size <= 0) {
       ++missing_;
       continue;
     }
-    const int64_t address = ca_->sound_asset_malloc(size);
+    const int64_t address = rv_ca_sound_asset_malloc(ca_, size);
     if (address < 0) {
       ++missing_;
       continue;
     }
     if (!upload(SM_EFFECTS[i].resource, address, size)) {
-      ca_->sound_asset_free(address);
+      rv_ca_sound_asset_free(ca_, address);
       ++missing_;
       continue;
     }
@@ -279,7 +279,7 @@ int64_t sm_sound::load(rv_pdk::rv_pdko &pdk) {
     sound_bytes_ += size;
   }
 
-  return rv_pdk::RV_OK;
+  return RV_OK;
 }
 
 void sm_sound::set_area(sm_song area) {
@@ -322,19 +322,19 @@ void sm_sound::unload() {
 
   for (int i = 0; i < SM_SFX_COUNT; ++i) {
     if (effects_[i] != 0)
-      ca_->sound_asset_free(effects_[i]);
+      rv_ca_sound_asset_free(ca_, effects_[i]);
     effects_[i] = 0;
   }
   for (int i = 0; i < 2; ++i) {
     if (step_slot_[i] != 0)
-      ca_->sound_asset_free(step_slot_[i]);
+      rv_ca_sound_asset_free(ca_, step_slot_[i]);
     step_slot_[i] = 0;
     step_slot_bytes_[i] = 0;
   }
   area_ = SM_SONG_NONE;
   for (int i = 0; i < 2; ++i) {
     if (slots_[i].address != 0)
-      ca_->sound_asset_free(slots_[i].address);
+      rv_ca_sound_asset_free(ca_, slots_[i].address);
     slots_[i] = sm_slot{};
   }
   sound_bytes_ = 0;
@@ -352,9 +352,9 @@ void sm_sound::arm_and_play(int64_t voice_mask, int64_t address, float gain,
   const float left = pan <= 0.0f ? 1.0f : (1.0f - pan);
   const float right = pan >= 0.0f ? 1.0f : (1.0f + pan);
 
-  rv_pdk::rv_voice_conf conf{};
+  rv_voice_conf conf{};
   conf.voice = voice_mask;
-  conf.loop_type = rv_pdk::rv_loop::none;
+  conf.loop_type = RV_LOOP_NONE;
   conf.sample_address = address;
   // ar = 0 opens the envelope on the first frame and sr = 0 holds it there
   // (src/rv_pconsole/ca/rv_pcvoice.cpp): a rate of zero means "arrive
@@ -374,9 +374,9 @@ void sm_sound::arm_and_play(int64_t voice_mask, int64_t address, float gain,
   conf.volume_l = scale_volume(32767, left);
   conf.volume_r = scale_volume(32767, right);
 
-  if (ca_->voice_setup(&conf) < 0)
+  if (rv_ca_voice_setup(ca_, &conf) < 0)
     return;
-  ca_->voice_play(voice_mask);
+  rv_ca_voice_play(ca_, voice_mask);
 }
 
 int64_t sm_sound::free_effect_voice() {
@@ -384,7 +384,7 @@ int64_t sm_sound::free_effect_voice() {
     return 0;
 
   const int64_t block = ((1LL << SM_EFFECT_COUNT) - 1) << SM_EFFECT_FIRST;
-  const int64_t busy = ca_->voice_status(block);
+  const int64_t busy = rv_ca_voice_status(ca_, block);
   if (busy >= 0) {
     for (int i = 0; i < SM_EFFECT_COUNT; ++i) {
       const int64_t index = SM_EFFECT_FIRST + i;
@@ -419,7 +419,7 @@ void sm_sound::set_loop(sm_loop_id id, bool on) {
 
   const int64_t voice = 1LL << (SM_VOICE_LOOP_FIRST + id);
   if (!on) {
-    ca_->voice_stop(voice);
+    rv_ca_voice_stop(ca_, voice);
     loop_on_[id] = false;
     return;
   }
@@ -428,12 +428,12 @@ void sm_sound::set_loop(sm_loop_id id, bool on) {
   if (address == 0)
     return; // the sample never made it into sound RAM; stay silent, stay quiet
 
-  rv_pdk::rv_voice_conf conf{};
+  rv_voice_conf conf{};
   conf.voice = voice;
   // THE WHOLE SAMPLE, FOREVER. rv_loop has no loop points (pdk/ca/rv_ca.hpp),
   // so a bed has to meet itself — which is why these two ship untrimmed and
   // unfaded: prep_audio.py would otherwise put a dip in the seam once a second.
-  conf.loop_type = rv_pdk::rv_loop::forever;
+  conf.loop_type = RV_LOOP_FOREVER;
   conf.sample_address = address;
   conf.ar = 0;
   conf.dr = 0;
@@ -444,9 +444,9 @@ void sm_sound::set_loop(sm_loop_id id, bool on) {
   conf.volume_l = 32767;
   conf.volume_r = 32767;
 
-  if (ca_->voice_setup(&conf) < 0)
+  if (rv_ca_voice_setup(ca_, &conf) < 0)
     return;
-  ca_->voice_play(voice);
+  rv_ca_voice_play(ca_, voice);
   ++fired_[SM_LOOP_SAMPLE[id]];
   loop_on_[id] = true;
 }
@@ -520,7 +520,7 @@ void sm_sound::play_song(sm_song song, int max_bars) {
 
 void sm_sound::stop_song() {
   if (ca_ && started_) {
-    ca_->voice_stop((1LL << slots_[0].voice) | (1LL << slots_[1].voice));
+    rv_ca_voice_stop(ca_, (1LL << slots_[0].voice) | (1LL << slots_[1].voice));
   }
   song_ = SM_SONG_NONE;
   bar_limit_ = 0;
@@ -572,7 +572,7 @@ void sm_sound::update(float dt) {
     if (!slots_[i].needs_refill)
       continue;
     const int64_t bit = 1LL << slots_[i].voice;
-    const int64_t busy = ca_->voice_status(bit);
+    const int64_t busy = rv_ca_voice_status(ca_, bit);
     if (busy > 0)
       continue;
     const int ahead = (bar_ + 1) % count;

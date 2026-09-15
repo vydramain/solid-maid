@@ -2,8 +2,8 @@
 
 #include <cmath>
 
-#include "pdk/cv/rv_primitives.hpp"
-#include "pdk/rv_err.hpp"
+#include "pdk/cv/rv_primitives.h"
+#include "pdk/rv_err.h"
 
 namespace solidmaid {
 namespace {
@@ -16,12 +16,12 @@ float clampf(float value, float low, float high) {
   return value < low ? low : (value > high ? high : value);
 }
 
-rv_pdk::rv_uv uv_at(sm_uvrect uv, float s, float t) {
+rv_uv uv_at(sm_uvrect uv, float s, float t) {
   const float u = static_cast<float>(uv.u0) +
                   (static_cast<float>(uv.u1) - static_cast<float>(uv.u0)) * s;
   const float v = static_cast<float>(uv.v0) +
                   (static_cast<float>(uv.v1) - static_cast<float>(uv.v0)) * t;
-  return rv_pdk::rv_uv{static_cast<uint16_t>(u + 0.5f),
+  return rv_uv{static_cast<uint16_t>(u + 0.5f),
                        static_cast<uint16_t>(v + 0.5f)};
 }
 
@@ -33,13 +33,13 @@ uint8_t lerp_channel(uint8_t a, uint8_t b, float t) {
   return static_cast<uint8_t>(clampf(value + 0.5f, 0.0f, 255.0f));
 }
 
-rv_pdk::rv_color lerp_colour(rv_pdk::rv_color a, rv_pdk::rv_color b, float t) {
-  return rv_pdk::rv_color{lerp_channel(a.r, b.r, t), lerp_channel(a.g, b.g, t),
+rv_color lerp_colour(rv_color a, rv_color b, float t) {
+  return rv_color{lerp_channel(a.r, b.r, t), lerp_channel(a.g, b.g, t),
                           lerp_channel(a.b, b.b, t)};
 }
 
 // Bilinear over the four corner colours, in the same Z order as the geometry.
-rv_pdk::rv_color colour_at(const rv_pdk::rv_color colours[4], float s,
+rv_color colour_at(const rv_color colours[4], float s,
                            float t) {
   return lerp_colour(lerp_colour(colours[0], colours[1], s),
                      lerp_colour(colours[2], colours[3], s), t);
@@ -104,7 +104,7 @@ int subdivisions(float length, float tess_metres, float distance) {
 // consistent with what the hardware will do downstream.
 struct sm_cvert {
   rv_pdklib::rv_vec4 clip{};
-  rv_pdk::rv_color colour{};
+  rv_color colour{};
   float u = 0.0f;
   float v = 0.0f;
 };
@@ -146,10 +146,10 @@ int clip_near(const sm_cvert *in, int count, sm_cvert *out, float limit) {
   return n;
 }
 
-rv_pdk::rv_uv uv_of(const sm_cvert &vertex) {
+rv_uv uv_of(const sm_cvert &vertex) {
   const float u = vertex.u < 0.0f ? 0.0f : vertex.u;
   const float v = vertex.v < 0.0f ? 0.0f : vertex.v;
-  return rv_pdk::rv_uv{static_cast<uint16_t>(u + 0.5f),
+  return rv_uv{static_cast<uint16_t>(u + 0.5f),
                        static_cast<uint16_t>(v + 0.5f)};
 }
 
@@ -164,7 +164,7 @@ rv_vec3 sm_right(float yaw) {
   return rv_vec3{std::cos(yaw), 0.0f, -std::sin(yaw)};
 }
 
-void sm_gfx::attach(rv_pdk::rv_cv *cv, int64_t screen_width,
+void sm_gfx::attach(rv_cv *cv, int64_t screen_width,
                     int64_t screen_height, int64_t frame_capacity) {
   cv_ = cv;
   screen_width_ = screen_width;
@@ -172,7 +172,7 @@ void sm_gfx::attach(rv_pdk::rv_cv *cv, int64_t screen_width,
   frame_capacity_ = frame_capacity;
 }
 
-void sm_gfx::begin(const sm_view &view, rv_pdk::rv_color clear_colour,
+void sm_gfx::begin(const sm_view &view, rv_color clear_colour,
                    float far_plane) {
   view_ = view;
   forward_ = sm_forward(view.yaw, view.pitch);
@@ -203,17 +203,17 @@ void sm_gfx::begin(const sm_view &view, rv_pdk::rv_color clear_colour,
 
   submitted_ = 0;
   dropped_ = 0;
-  cv_->frame_configure(0, clear_colour);
+  rv_cv_frame_configure(cv_, 0, clear_colour);
 }
 
-void sm_gfx::end() { cv_->frame_flush(); }
+void sm_gfx::end() { rv_cv_frame_flush(cv_); }
 
-bool sm_gfx::put(const rv_pdk::rv_primitive &primitive) {
+bool sm_gfx::put(const rv_primitive &primitive) {
   if (submitted_ >= frame_capacity_) {
     ++dropped_;
     return false;
   }
-  if (cv_->frame_put(primitive) < 0) {
+  if (rv_cv_frame_put(cv_, &primitive) < 0) {
     ++dropped_;
     return false;
   }
@@ -254,16 +254,16 @@ bool sm_gfx::project(rv_vec3 world, float &out_x, float &out_y) const {
   return true;
 }
 
-void sm_gfx::quad_raw(const rv_vec3 corners[4], const rv_pdk::rv_uv uv[4],
-                      sm_texref texture, rv_pdk::rv_color tint, bool textured,
+void sm_gfx::quad_raw(const rv_vec3 corners[4], const rv_uv uv[4],
+                      sm_texref texture, rv_color tint, bool textured,
                       int32_t depth_bias) {
-  const rv_pdk::rv_color colours[4] = {tint, tint, tint, tint};
+  const rv_color colours[4] = {tint, tint, tint, tint};
   emit_surface(corners, colours, uv, texture, textured, depth_bias);
 }
 
 void sm_gfx::emit_surface(const rv_vec3 corners[4],
-                          const rv_pdk::rv_color colours[4],
-                          const rv_pdk::rv_uv uv[4], sm_texref texture,
+                          const rv_color colours[4],
+                          const rv_uv uv[4], sm_texref texture,
                           bool textured, int32_t depth_bias) {
   const bool sampling = textured && texture.valid();
   const float limit = conf_.near_plane * 0.999f;
@@ -276,17 +276,17 @@ void sm_gfx::emit_surface(const rv_vec3 corners[4],
       crosses = true;
   }
 
-  auto fill = [&](rv_pdk::rv_polygon &polygon) {
+  auto fill = [&](rv_polygon &polygon) {
     if (sampling) {
-      polygon.fill_mode = rv_pdk::RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE;
+      polygon.fill_mode = RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE;
       polygon.addr_texture = texture.texels;
       polygon.addr_palette = texture.palette;
-      polygon.mapping = rv_pdk::RV_TEXWRAP_CLAMP;
+      polygon.mapping = RV_TEXWRAP_CLAMP;
     } else {
-      polygon.fill_mode = rv_pdk::RV_PRIMITIVE_FILL_MODE_FLAT_COLOURED;
+      polygon.fill_mode = RV_PRIMITIVE_FILL_MODE_FLAT_COLOURED;
       polygon.addr_texture = 0;
       polygon.addr_palette = 0;
-      polygon.mapping = rv_pdk::RV_TEXWRAP_CLAMP;
+      polygon.mapping = RV_TEXWRAP_CLAMP;
     }
   };
 
@@ -294,11 +294,11 @@ void sm_gfx::emit_surface(const rv_vec3 corners[4],
   // in the PDK's Z order — one primitive instead of two, and the
   // (1,2,3)/(2,3,4) split is the one the console expects.
   if (!crosses) {
-    rv_pdk::rv_primitive primitive{};
-    primitive.type = rv_pdk::RV_PRIMITIVE_POLYGON;
+    rv_primitive primitive{};
+    primitive.type = RV_PRIMITIVE_POLYGON;
     primitive.depth = rv_pdklib::rv_xform_depth_key(clip, 4, conf_) + depth_bias;
 
-    rv_pdk::rv_polygon &polygon = primitive.data.polygon;
+    rv_polygon &polygon = primitive.data.polygon;
     fill(polygon);
     polygon.vertex_count = 4;
     for (int i = 0; i < 4; ++i) {
@@ -342,7 +342,7 @@ void sm_gfx::emit_surface(const rv_vec3 corners[4],
   const int32_t depth =
       rv_pdklib::rv_xform_depth_key(keys, count, conf_) + depth_bias;
 
-  rv_pdk::rv_vertex projected[8];
+  rv_vertex projected[8];
   for (int i = 0; i < count; ++i) {
     const rv_pdklib::rv_vec2 screen =
         rv_pdklib::rv_xform_to_screen(rv_pdklib::rv_xform_divide(kept[i].clip),
@@ -355,24 +355,24 @@ void sm_gfx::emit_surface(const rv_vec3 corners[4],
   // from any of its vertices, and triangles are used rather than quads because
   // a fan is not the console's Z order and a 5-gon has no quad form at all.
   for (int i = 1; i + 1 < count; ++i) {
-    rv_pdk::rv_primitive primitive{};
-    primitive.type = rv_pdk::RV_PRIMITIVE_POLYGON;
+    rv_primitive primitive{};
+    primitive.type = RV_PRIMITIVE_POLYGON;
     primitive.depth = depth;
 
-    rv_pdk::rv_polygon &polygon = primitive.data.polygon;
+    rv_polygon &polygon = primitive.data.polygon;
     fill(polygon);
     polygon.vertex_count = 3;
     polygon.vertexes[0] = projected[0];
     polygon.vertexes[1] = projected[i];
     polygon.vertexes[2] = projected[i + 1];
     // No byte of a submitted primitive may be indeterminate: it is a union.
-    polygon.vertexes[3] = rv_pdk::rv_vertex{};
+    polygon.vertexes[3] = rv_vertex{};
     put(primitive);
   }
 }
 
 void sm_gfx::quad(const rv_vec3 corners[4], sm_texref texture, sm_uvrect uv,
-                  rv_pdk::rv_color tint, float tess_metres, int32_t depth_bias) {
+                  rv_color tint, float tess_metres, int32_t depth_bias) {
   const rv_vec3 centre =
       (corners[0] + corners[1] + corners[2] + corners[3]) * 0.25f;
   float radius = 0.0f;
@@ -405,21 +405,21 @@ void sm_gfx::quad(const rv_vec3 corners[4], sm_texref texture, sm_uvrect uv,
       const rv_vec3 cell[4] = {
           quad_point(corners, s0, t0), quad_point(corners, s1, t0),
           quad_point(corners, s0, t1), quad_point(corners, s1, t1)};
-      const rv_pdk::rv_uv cell_uv[4] = {uv_at(uv, s0, t0), uv_at(uv, s1, t0),
+      const rv_uv cell_uv[4] = {uv_at(uv, s0, t0), uv_at(uv, s1, t0),
                                         uv_at(uv, s0, t1), uv_at(uv, s1, t1)};
       quad_raw(cell, cell_uv, texture, tint, true, depth_bias);
     }
   }
 }
 
-void sm_gfx::quad_flat(const rv_vec3 corners[4], rv_pdk::rv_color tint,
+void sm_gfx::quad_flat(const rv_vec3 corners[4], rv_color tint,
                        float tess_metres) {
-  const rv_pdk::rv_color colours[4] = {tint, tint, tint, tint};
+  const rv_color colours[4] = {tint, tint, tint, tint};
   quad_shaded(corners, colours, tess_metres);
 }
 
 void sm_gfx::quad_shaded(const rv_vec3 corners[4],
-                         const rv_pdk::rv_color colours[4], float tess_metres) {
+                         const rv_color colours[4], float tess_metres) {
   const rv_vec3 centre =
       (corners[0] + corners[1] + corners[2] + corners[3]) * 0.25f;
   float radius = 0.0f;
@@ -455,18 +455,18 @@ void sm_gfx::quad_shaded(const rv_vec3 corners[4],
 
       const float su[4] = {s0, s1, s0, s1};
       const float sv[4] = {t0, t0, t1, t1};
-      rv_pdk::rv_color cell_colours[4];
+      rv_color cell_colours[4];
       for (int k = 0; k < 4; ++k)
         cell_colours[k] = colour_at(colours, su[k], sv[k]);
 
-      const rv_pdk::rv_uv no_uv[4] = {};
+      const rv_uv no_uv[4] = {};
       emit_surface(cell, cell_colours, no_uv, sm_texref{}, false);
     }
   }
 }
 
 void sm_gfx::billboard(rv_vec3 centre, float half_width, float half_height,
-                       sm_texref texture, sm_uvrect uv, rv_pdk::rv_color tint) {
+                       sm_texref texture, sm_uvrect uv, rv_color tint) {
   const float radius =
       std::sqrt(half_width * half_width + half_height * half_height);
   if (!visible(centre, radius))
@@ -485,7 +485,7 @@ void sm_gfx::billboard(rv_vec3 centre, float half_width, float half_height,
 
   const rv_vec3 corners[4] = {centre - side + up, centre + side + up,
                               centre - side - up, centre + side - up};
-  const rv_pdk::rv_uv cell_uv[4] = {
+  const rv_uv cell_uv[4] = {
       uv_at(uv, 0.0f, 0.0f), uv_at(uv, 1.0f, 0.0f), uv_at(uv, 0.0f, 1.0f),
       uv_at(uv, 1.0f, 1.0f)};
   quad_raw(corners, cell_uv, texture, tint, true);
@@ -493,7 +493,7 @@ void sm_gfx::billboard(rv_vec3 centre, float half_width, float half_height,
 
 void sm_gfx::decal_ground(rv_vec3 centre, float half_size, float y,
                           sm_texref texture, sm_uvrect uv,
-                          rv_pdk::rv_color tint) {
+                          rv_color tint) {
   if (!visible(rv_vec3{centre.x, y, centre.z}, half_size * 1.5f))
     return;
 
@@ -508,13 +508,13 @@ void sm_gfx::decal_ground(rv_vec3 centre, float half_size, float y,
       rv_vec3{centre.x + half_size, h, centre.z + half_size},
       rv_vec3{centre.x - half_size, h, centre.z - half_size},
       rv_vec3{centre.x + half_size, h, centre.z - half_size}};
-  const rv_pdk::rv_uv cell_uv[4] = {
+  const rv_uv cell_uv[4] = {
       uv_at(uv, 0.0f, 0.0f), uv_at(uv, 1.0f, 0.0f), uv_at(uv, 0.0f, 1.0f),
       uv_at(uv, 1.0f, 1.0f)};
   quad_raw(corners, cell_uv, texture, tint, true, SM_DEPTH_BIAS_DECAL);
 }
 
-void sm_gfx::line3(rv_vec3 a, rv_vec3 b, rv_pdk::rv_color colour) {
+void sm_gfx::line3(rv_vec3 a, rv_vec3 b, rv_color colour) {
   rv_pdklib::rv_vec2 sa{}, sb{};
   int32_t da = 0, db = 0;
   if (!rv_pdklib::rv_xform_point(conf_, a, sa, da))
@@ -522,29 +522,29 @@ void sm_gfx::line3(rv_vec3 a, rv_vec3 b, rv_pdk::rv_color colour) {
   if (!rv_pdklib::rv_xform_point(conf_, b, sb, db))
     return;
 
-  rv_pdk::rv_primitive primitive{};
-  primitive.type = rv_pdk::RV_PRIMITIVE_LINE;
+  rv_primitive primitive{};
+  primitive.type = RV_PRIMITIVE_LINE;
   primitive.depth = da < db ? da : db;
   primitive.data.line.vertexes[0] =
-      rv_pdklib::rv_xform_vertex_make(sa, colour, rv_pdk::rv_uv{});
+      rv_pdklib::rv_xform_vertex_make(sa, colour, rv_uv{});
   primitive.data.line.vertexes[1] =
-      rv_pdklib::rv_xform_vertex_make(sb, colour, rv_pdk::rv_uv{});
+      rv_pdklib::rv_xform_vertex_make(sb, colour, rv_uv{});
   put(primitive);
 }
 
-void sm_gfx::sprite(int x, int y, int w, int h, rv_pdk::rv_color colour,
+void sm_gfx::sprite(int x, int y, int w, int h, rv_color colour,
                     int32_t depth) {
   if (w <= 0 || h <= 0)
     return;
 
-  rv_pdk::rv_primitive primitive{};
-  primitive.type = rv_pdk::RV_PRIMITIVE_SPRITE;
+  rv_primitive primitive{};
+  primitive.type = RV_PRIMITIVE_SPRITE;
   primitive.depth = depth;
 
-  rv_pdk::rv_sprite &s = primitive.data.sprite;
-  s.fill_mode = rv_pdk::RV_PRIMITIVE_FILL_MODE_FLAT_COLOURED;
+  rv_sprite &s = primitive.data.sprite;
+  s.fill_mode = RV_PRIMITIVE_FILL_MODE_FLAT_COLOURED;
   s.color = colour;
-  s.mapping = rv_pdk::RV_TEXWRAP_CLAMP;
+  s.mapping = RV_TEXWRAP_CLAMP;
   s.x = static_cast<int16_t>(x);
   s.y = static_cast<int16_t>(y);
   s.width = static_cast<uint16_t>(w);
@@ -553,14 +553,14 @@ void sm_gfx::sprite(int x, int y, int w, int h, rv_pdk::rv_color colour,
 }
 
 void sm_gfx::sprite_tex(int x, int y, int w, int h, sm_texref texture,
-                        sm_uvrect uv, rv_pdk::rv_color tint, int32_t depth) {
+                        sm_uvrect uv, rv_color tint, int32_t depth) {
   if (w <= 0 || h <= 0 || !texture.valid())
     return;
 
   // rv_sprite samples from the texture's upper-left corner, so an atlas cell
   // has to be addressed as a quad. Two triangles instead of one rectangle is
   // the price of atlasing, and it is what every UI element here pays.
-  const rv_pdk::rv_vertex corners[4] = {
+  const rv_vertex corners[4] = {
       {static_cast<int16_t>(x), static_cast<int16_t>(y), tint,
        uv_at(uv, 0.0f, 0.0f)},
       {static_cast<int16_t>(x + w), static_cast<int16_t>(y), tint,
@@ -572,20 +572,20 @@ void sm_gfx::sprite_tex(int x, int y, int w, int h, sm_texref texture,
   quad2d(corners, texture, depth);
 }
 
-void sm_gfx::quad2d(const rv_pdk::rv_vertex corners[4], sm_texref texture,
+void sm_gfx::quad2d(const rv_vertex corners[4], sm_texref texture,
                     int32_t depth) {
   if (!texture.valid())
     return;
 
-  rv_pdk::rv_primitive primitive{};
-  primitive.type = rv_pdk::RV_PRIMITIVE_POLYGON;
+  rv_primitive primitive{};
+  primitive.type = RV_PRIMITIVE_POLYGON;
   primitive.depth = depth;
 
-  rv_pdk::rv_polygon &polygon = primitive.data.polygon;
-  polygon.fill_mode = rv_pdk::RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE;
+  rv_polygon &polygon = primitive.data.polygon;
+  polygon.fill_mode = RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE;
   polygon.addr_texture = texture.texels;
   polygon.addr_palette = texture.palette;
-  polygon.mapping = rv_pdk::RV_TEXWRAP_CLAMP;
+  polygon.mapping = RV_TEXWRAP_CLAMP;
   polygon.vertex_count = 4;
   for (int i = 0; i < 4; ++i)
     polygon.vertexes[i] = corners[i];

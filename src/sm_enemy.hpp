@@ -16,7 +16,7 @@
 
 #include <vector>
 
-#include "pdklib/rv_math.hpp"
+#include "pdklib/rv_math/rv_math.hpp"
 
 #include "sm_common.hpp"
 #include "sm_gfx.hpp"

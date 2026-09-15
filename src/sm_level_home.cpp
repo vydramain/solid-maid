@@ -56,11 +56,11 @@ constexpr float YARD_BLOCK_Z = 15.00f;
 constexpr float YARD_LAMP_Z = 8.00f;
 constexpr float YARD_GROUND_Y = -7.00f;
 
-constexpr rv_pdk::rv_color WHITE{255, 255, 255};
+constexpr rv_color WHITE{255, 255, 255};
 // Mercury green-cyan. The streetlights are cold and the apartment's own light
 // is warm, and docs/art-and-audio.md holds the two apart on purpose: they never
 // mix.
-constexpr rv_pdk::rv_color MERCURY{104, 168, 152};
+constexpr rv_color MERCURY{104, 168, 152};
 
 // A small textured card laid flat on an existing surface — a trace, a switch, a
 // picture. Everything of this kind is offset off its wall by a hair so the
@@ -85,7 +85,7 @@ void sm_build_home(sm_scene &out, const sm_countdown &state) {
   out.draws_sky = false;
   // The ambient floor made literal. Dim and slightly warm — the one working
   // bulb — and never zero, on any tier, final lap included.
-  out.clear_colour = rv_pdk::rv_color{21, 19, 20};
+  out.clear_colour = rv_color{21, 19, 20};
 
   // At the bed, looking down the length of the room at the window. The first
   // thing the player sees on every shift is the courtyard, which is where L1

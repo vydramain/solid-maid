@@ -33,12 +33,12 @@ int sm_text_width(std::string_view text, int scale);
 
 // Draws `text` with its top-left corner at (x, y). Returns the width drawn.
 int sm_text_draw(sm_gfx &gfx, const sm_assets &assets, int x, int y,
-                 std::string_view text, rv_pdk::rv_color colour, int scale,
+                 std::string_view text, rv_color colour, int scale,
                  int32_t depth);
 
 // Same, horizontally centred on `centre_x`.
 int sm_text_draw_centred(sm_gfx &gfx, const sm_assets &assets, int centre_x,
-                         int y, std::string_view text, rv_pdk::rv_color colour,
+                         int y, std::string_view text, rv_color colour,
                          int scale, int32_t depth);
 
 // Text on a world-space quad — the factory board, which is painted on a wall
@@ -48,6 +48,6 @@ int sm_text_draw_centred(sm_gfx &gfx, const sm_assets &assets, int centre_x,
 void sm_text_draw_world(sm_gfx &gfx, const sm_assets &assets,
                         rv_pdklib::rv_vec3 origin, rv_pdklib::rv_vec3 right,
                         rv_pdklib::rv_vec3 down, std::string_view text,
-                        rv_pdk::rv_color colour);
+                        rv_color colour);
 
 } // namespace solidmaid

@@ -9,7 +9,6 @@
 [disc]
 id = "solid-maid"
 title = "Solidmaid: Alkoldun Vasiliusavich"
-abi_version = 1
 
 [build]
 sources = ["src/*.cpp"]
@@ -34,7 +33,15 @@ files = ["assets/snd/*.pcm"]
 files = ["assets/tex/*.png"]
 format = "idx4"
 
-[budget]
+# Sound RAM. The resident bank sm_sound.cpp loads — two one-bar music slots,
+# the two shared footstep slots and eighteen effects — is 1 016 398 bytes.
+# 3dmppc v0.0 gave every disc 1 MiB of sound RAM; from v0.2 the reference
+# machine has 512 KiB and a disc states here what it needs. At 512 KiB the last
+# eight effects in load order do not fit and play silent.
+[budget.pcca]
+sound_memory_size = 1048576
+
+[budget.pccv]
 texture_max_width = 256
 texture_max_height = 256
 video_memory_size = 1048576

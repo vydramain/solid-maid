@@ -48,17 +48,17 @@ namespace {
 // Deliberately desaturated and few: the HUD is not allowed to be the brightest
 // thing on screen, because the brightest thing on screen is supposed to be a
 // lamppost, a pre-warm ring, or the board.
-constexpr rv_pdk::rv_color SM_COL_BLACK{0, 0, 0};
-constexpr rv_pdk::rv_color SM_COL_PLATE{16, 16, 14};
-constexpr rv_pdk::rv_color SM_COL_TRACK{38, 40, 36};
-constexpr rv_pdk::rv_color SM_COL_HEALTH{168, 62, 46};
-constexpr rv_pdk::rv_color SM_COL_CHARGE{206, 190, 116};
-constexpr rv_pdk::rv_color SM_COL_COOLDOWN{86, 90, 82};
-constexpr rv_pdk::rv_color SM_COL_STEP_DONE{120, 132, 104};
-constexpr rv_pdk::rv_color SM_COL_STEP_RUN{198, 200, 168};
-constexpr rv_pdk::rv_color SM_COL_WARN{196, 76, 44};
-constexpr rv_pdk::rv_color SM_COL_HURT{146, 28, 22};
-constexpr rv_pdk::rv_color SM_COL_TITLE_BG{12, 12, 12};
+constexpr rv_color SM_COL_BLACK{0, 0, 0};
+constexpr rv_color SM_COL_PLATE{16, 16, 14};
+constexpr rv_color SM_COL_TRACK{38, 40, 36};
+constexpr rv_color SM_COL_HEALTH{168, 62, 46};
+constexpr rv_color SM_COL_CHARGE{206, 190, 116};
+constexpr rv_color SM_COL_COOLDOWN{86, 90, 82};
+constexpr rv_color SM_COL_STEP_DONE{120, 132, 104};
+constexpr rv_color SM_COL_STEP_RUN{198, 200, 168};
+constexpr rv_color SM_COL_WARN{196, 76, 44};
+constexpr rv_color SM_COL_HURT{146, 28, 22};
+constexpr rv_color SM_COL_TITLE_BG{12, 12, 12};
 
 // The one piece of state this file keeps. The interrupted-assembly flash needs
 // a clock and sm_hud_model carries none; the HUD is drawn exactly once per
@@ -95,8 +95,8 @@ sm_uvrect uv_mirror(sm_uvrect uv, bool flip_x, bool flip_y) {
   return out;
 }
 
-rv_pdk::rv_uv uv_corner(sm_uvrect uv, bool far_u, bool far_v) {
-  return rv_pdk::rv_uv{far_u ? uv.u1 : uv.u0, far_v ? uv.v1 : uv.v0};
+rv_uv uv_corner(sm_uvrect uv, bool far_u, bool far_v) {
+  return rv_uv{far_u ? uv.u1 : uv.u0, far_v ? uv.v1 : uv.v0};
 }
 
 // A screen-space card with a rotation — the whole of the view model's animation
@@ -115,7 +115,7 @@ void draw_card(sm_gfx &gfx, sm_texref texture, sm_uvrect uv, float cx, float cy,
   const bool far_u[4] = {false, true, false, true};
   const bool far_v[4] = {false, false, true, true};
 
-  rv_pdk::rv_vertex corners[4];
+  rv_vertex corners[4];
   for (int i = 0; i < 4; ++i) {
     corners[i].x = to_i16(cx + ox[i] * c - oy[i] * s);
     corners[i].y = to_i16(cy + ox[i] * s + oy[i] * c);
@@ -129,7 +129,7 @@ void draw_card(sm_gfx &gfx, sm_texref texture, sm_uvrect uv, float cx, float cy,
 // primitives, both colourable, and no dependence on the HUD atlas having
 // loaded.
 void draw_meter(sm_gfx &gfx, int x, int y, int w, int h, float fill,
-                rv_pdk::rv_color track, rv_pdk::rv_color ink, int32_t depth) {
+                rv_color track, rv_color ink, int32_t depth) {
   gfx.sprite(x, y, w, h, track, depth);
   const int inner = w - 2;
   const int filled =
@@ -375,7 +375,7 @@ void sm_ui_draw_hud(sm_gfx &gfx, const sm_assets &assets,
     for (int i = 0; i < SM_ASSEMBLY_STEPS; ++i) {
       const int x = x0 + i * (seg_w + seg_gap);
       float fill = 0.0f;
-      rv_pdk::rv_color ink = SM_COL_STEP_DONE;
+      rv_color ink = SM_COL_STEP_DONE;
       if (i < step) {
         fill = 1.0f;
       } else if (i == step) {
@@ -459,7 +459,7 @@ void sm_ui_draw_viewmodel(sm_gfx &gfx, const sm_assets &assets,
                       static_cast<float>(h) - 32.0f, 1.0f, sway_x, sway_y);
 }
 
-void sm_ui_draw_fade(sm_gfx &gfx, float amount, rv_pdk::rv_color colour) {
+void sm_ui_draw_fade(sm_gfx &gfx, float amount, rv_color colour) {
   if (amount <= 0.0f)
     return;
 
@@ -620,16 +620,16 @@ void sm_ui_draw_debug(sm_gfx &gfx, const sm_assets &assets,
       uint64_t bit;
       const char *name;
     } SM_PAD_BITS[] = {
-        {rv_pdk::RV_ISOURCE_FRONT_BTTN_SOUTH, "SOUTH"},
-        {rv_pdk::RV_ISOURCE_FRONT_BTTN_EAST, "EAST"},
-        {rv_pdk::RV_ISOURCE_FRONT_BTTN_WEST, "WEST"},
-        {rv_pdk::RV_ISOURCE_FRONT_BTTN_NORTH, "NORTH"},
-        {rv_pdk::RV_ISOURCE_BUMPER_LEFT, "LB"},
-        {rv_pdk::RV_ISOURCE_BUMPER_RIGHT, "RB"},
-        {rv_pdk::RV_ISOURCE_LEFT_TRIGGER_SOFT_PULL, "LT"},
-        {rv_pdk::RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL, "RT"},
-        {rv_pdk::RV_ISOURCE_MENU_BTTN_MENU, "MENU"},
-        {rv_pdk::RV_ISOURCE_MENU_BTTN_VIEW, "VIEW"},
+        {RV_ISOURCE_FRONT_BTTN_SOUTH, "SOUTH"},
+        {RV_ISOURCE_FRONT_BTTN_EAST, "EAST"},
+        {RV_ISOURCE_FRONT_BTTN_WEST, "WEST"},
+        {RV_ISOURCE_FRONT_BTTN_NORTH, "NORTH"},
+        {RV_ISOURCE_BUMPER_LEFT, "LB"},
+        {RV_ISOURCE_BUMPER_RIGHT, "RB"},
+        {RV_ISOURCE_LEFT_TRIGGER_SOFT_PULL, "LT"},
+        {RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL, "RT"},
+        {RV_ISOURCE_MENU_BTTN_MENU, "MENU"},
+        {RV_ISOURCE_MENU_BTTN_VIEW, "VIEW"},
     };
 
     char line[96];

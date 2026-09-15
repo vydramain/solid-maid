@@ -18,7 +18,7 @@
 
 #include <cstdint>
 
-#include "pdk/cm/rv_cm.hpp"
+#include "pdk/cm/rv_cm.h"
 
 #include "sm_common.hpp"
 
@@ -72,7 +72,7 @@ bool sm_save_decode(const uint8_t data[SM_SAVE_BYTES], sm_countdown &out);
 // Card I/O. Both are best-effort: a missing or unreadable card starts a fresh
 // run rather than refusing to play, because the design has nothing worth
 // blocking on (docs/content.md: "no real save system needed").
-bool sm_save_store(rv_pdk::rv_cm *cm, const sm_countdown &state);
-bool sm_save_load(rv_pdk::rv_cm *cm, sm_countdown &out);
+bool sm_save_store(rv_cm *cm, const sm_countdown &state);
+bool sm_save_load(rv_cm *cm, sm_countdown &out);
 
 } // namespace solidmaid

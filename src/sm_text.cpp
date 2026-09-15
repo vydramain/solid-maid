@@ -56,7 +56,7 @@ sm_uvrect glyph_uv(int index) {
 // land in the same ordering-table bucket, submission order still puts it
 // behind.
 void draw_line(sm_gfx &gfx, sm_texref font, int x, int y, std::string_view line,
-               int glyphs, rv_pdk::rv_color colour, int scale, int32_t depth) {
+               int glyphs, rv_color colour, int scale, int32_t depth) {
   if (glyphs <= 0)
     return;
 
@@ -83,7 +83,7 @@ void draw_line(sm_gfx &gfx, sm_texref font, int x, int y, std::string_view line,
 // Walks `text` line by line. `centred` reads `x` as a centre rather than a left
 // edge and centres each line independently, which is what a title card wants.
 int draw_block(sm_gfx &gfx, const sm_assets &assets, int x, int y,
-               std::string_view text, rv_pdk::rv_color colour, int scale,
+               std::string_view text, rv_color colour, int scale,
                int32_t depth, bool centred) {
   if (scale < 1)
     scale = 1;
@@ -240,20 +240,20 @@ int sm_text_width(std::string_view text, int scale) {
 }
 
 int sm_text_draw(sm_gfx &gfx, const sm_assets &assets, int x, int y,
-                 std::string_view text, rv_pdk::rv_color colour, int scale,
+                 std::string_view text, rv_color colour, int scale,
                  int32_t depth) {
   return draw_block(gfx, assets, x, y, text, colour, scale, depth, false);
 }
 
 int sm_text_draw_centred(sm_gfx &gfx, const sm_assets &assets, int centre_x,
-                         int y, std::string_view text, rv_pdk::rv_color colour,
+                         int y, std::string_view text, rv_color colour,
                          int scale, int32_t depth) {
   return draw_block(gfx, assets, centre_x, y, text, colour, scale, depth, true);
 }
 
 void sm_text_draw_world(sm_gfx &gfx, const sm_assets &assets, rv_vec3 origin,
                         rv_vec3 right, rv_vec3 down, std::string_view text,
-                        rv_pdk::rv_color colour) {
+                        rv_color colour) {
   const sm_texref font = assets.ref(SM_TEX_FONT, 0);
 
   // ── SIZING THE BOARD'S LETTERING ─────────────────────────────────────────

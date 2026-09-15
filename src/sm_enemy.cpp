@@ -138,11 +138,11 @@ constexpr float SM_CLOUD_ROLL_RATE = SM_SMOKER_SPEED / SM_CLOUD_RADIUS;
 
 // Self-lit colours. Amber, so the ring is never mistaken for the pale
 // green-cyan of a mercury lamp that may or may not still be burning.
-constexpr rv_pdk::rv_color SM_RING_COLD{150, 108, 42};
-constexpr rv_pdk::rv_color SM_RING_HOT{255, 226, 150};
-constexpr rv_pdk::rv_color SM_FLASH_COLD{96, 92, 88};
-constexpr rv_pdk::rv_color SM_FLASH_HOT{255, 250, 236};
-constexpr rv_pdk::rv_color SM_WHITE{255, 255, 255};
+constexpr rv_color SM_RING_COLD{150, 108, 42};
+constexpr rv_color SM_RING_HOT{255, 226, 150};
+constexpr rv_color SM_FLASH_COLD{96, 92, 88};
+constexpr rv_color SM_FLASH_HOT{255, 250, 236};
+constexpr rv_color SM_WHITE{255, 255, 255};
 
 // ── small maths
 // ───────────────────────────────────────────────────────────────
@@ -175,8 +175,8 @@ uint8_t mix_channel(uint8_t a, uint8_t b, float t) {
   return static_cast<uint8_t>(clampf(value + 0.5f, 0.0f, 255.0f));
 }
 
-rv_pdk::rv_color mix_colour(rv_pdk::rv_color a, rv_pdk::rv_color b, float t) {
-  return rv_pdk::rv_color{mix_channel(a.r, b.r, t), mix_channel(a.g, b.g, t),
+rv_color mix_colour(rv_color a, rv_color b, float t) {
+  return rv_color{mix_channel(a.r, b.r, t), mix_channel(a.g, b.g, t),
                           mix_channel(a.b, b.b, t)};
 }
 
@@ -1123,7 +1123,7 @@ void sm_enemies::render(sm_gfx &gfx, const sm_assets &assets, int tier) const {
       // made to judge it against unlit ground.
       const float charge =
           clampf(1.0f + cloud.age / SM_SMOKER_WINDUP, 0.0f, 1.0f);
-      const rv_pdk::rv_color hot =
+      const rv_color hot =
           mix_colour(SM_RING_COLD, SM_RING_HOT, charge);
 
       // The untiered decal carries the shape. Its tint is ignored (textured

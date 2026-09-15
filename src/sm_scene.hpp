@@ -18,7 +18,7 @@
 
 #include <vector>
 
-#include "pdklib/rv_math.hpp"
+#include "pdklib/rv_math/rv_math.hpp"
 
 #include "sm_assets.hpp"
 #include "sm_common.hpp"
@@ -58,7 +58,7 @@ struct sm_surface {
   rv_pdklib::rv_vec3 corners[4];
   sm_tex_id texture = SM_TEX_COUNT; // SM_TEX_COUNT = untextured, flat colour
   sm_uvrect uv{};
-  rv_pdk::rv_color tint{255, 255, 255};
+  rv_color tint{255, 255, 255};
   float tess = 2.0f;
 };
 
@@ -70,7 +70,7 @@ struct sm_billboard {
   float half_height = 0.5f;
   sm_tex_id texture = SM_TEX_COUNT;
   sm_uvrect uv{};
-  rv_pdk::rv_color tint{255, 255, 255};
+  rv_color tint{255, 255, 255};
 };
 
 // A horizontal card on the ground: the lamp pools, the assembly glow.
@@ -80,7 +80,7 @@ struct sm_decal {
   float y = 0.0f;
   sm_tex_id texture = SM_TEX_COUNT;
   sm_uvrect uv{};
-  rv_pdk::rv_color tint{255, 255, 255};
+  rv_color tint{255, 255, 255};
 };
 
 // An axis-aligned rectangle in the xz plane. Walls, furniture, anything solid.
@@ -136,7 +136,7 @@ struct sm_scene {
   // The clear colour is the ambient floor made literal: it is what the player
   // sees where nothing is drawn, and docs/mechanics.md forbids driving it to
   // zero at any tier, the final lap included.
-  rv_pdk::rv_color clear_colour{18, 20, 26};
+  rv_color clear_colour{18, 20, 26};
   bool draws_sky = false;
 
   void clear();
@@ -146,18 +146,18 @@ struct sm_scene {
   // file cannot get the winding wrong and produce an hourglass.
 
   void add_floor(float x0, float z0, float x1, float z1, float y, sm_tex_id tex,
-                 sm_uvrect uv, rv_pdk::rv_color tint, float tess = 2.0f);
+                 sm_uvrect uv, rv_color tint, float tess = 2.0f);
   void add_ceiling(float x0, float z0, float x1, float z1, float y,
-                   sm_tex_id tex, sm_uvrect uv, rv_pdk::rv_color tint,
+                   sm_tex_id tex, sm_uvrect uv, rv_color tint,
                    float tess = 2.0f);
   // A vertical wall from (x0,z0) to (x1,z1), rising from y0 to y1. `solid`
   // also files a collider along it.
   void add_wall(float x0, float z0, float x1, float z1, float y0, float y1,
-                sm_tex_id tex, sm_uvrect uv, rv_pdk::rv_color tint, bool solid,
+                sm_tex_id tex, sm_uvrect uv, rv_color tint, bool solid,
                 float tess = 2.0f);
   // An axis-aligned box: four sides and a top. The standard prop primitive.
   void add_box(float x0, float z0, float x1, float z1, float y0, float y1,
-               sm_tex_id tex, sm_uvrect uv, rv_pdk::rv_color tint, bool solid,
+               sm_tex_id tex, sm_uvrect uv, rv_color tint, bool solid,
                float tess = 2.0f);
   void add_collider(float x0, float z0, float x1, float z1);
 };

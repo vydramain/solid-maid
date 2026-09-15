@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 
-#include "pdk/rv_err.hpp"
+#include "pdk/rv_err.h"
 
 #include "sm_atlas.hpp"
 #include "sm_scene.hpp"
@@ -32,7 +32,7 @@ constexpr float SM_PI = 3.14159265358979323846f;
 // whoever built the wall it is painted on, not guessed at from here.
 // docs/environments.md: the board is the only number in the game and "No
 // separate UI is ever used for this", so it is drawn as world geometry.
-constexpr rv_pdk::rv_color SM_BOARD_INK{232, 214, 150};
+constexpr rv_color SM_BOARD_INK{232, 214, 150};
 
 float clampf(float v, float lo, float hi) {
   return v < lo ? lo : (v > hi ? hi : v);
@@ -108,7 +108,7 @@ void sm_autopilot::enable_from_environment() {
   enabled_ = value != nullptr && value[0] != '\0' && value[0] != '0';
 }
 
-const rv_pdk::rv_istate *
+const rv_istate *
 sm_autopilot::drive(sm_mode mode, const sm_countdown &state,
                     const sm_scene &scene, const sm_player &player,
                     const sm_enemies &enemies, const sm_combat &combat,
@@ -118,7 +118,7 @@ sm_autopilot::drive(sm_mode mode, const sm_countdown &state,
 
   ++frames_;
   clock_ += dt;
-  pad_ = rv_pdk::rv_istate{};
+  pad_ = rv_istate{};
 
   // Harness only: hold Select across a two-second window starting at
   // SOLIDMAID_TEST_RESTART seconds, so the hold-to-restart binding is exercised
@@ -126,7 +126,7 @@ sm_autopilot::drive(sm_mode mode, const sm_countdown &state,
   if (const char *at = std::getenv("SOLIDMAID_TEST_RESTART")) {
     const float when = static_cast<float>(std::atof(at));
     if (when > 0.0f && clock_ >= when && clock_ < when + 2.0f) {
-      pad_.buttons |= rv_pdk::RV_ISOURCE_MENU_BTTN_MENU;
+      pad_.buttons |= RV_ISOURCE_MENU_BTTN_MENU;
       return &pad_;
     }
   }
@@ -135,7 +135,7 @@ sm_autopilot::drive(sm_mode mode, const sm_countdown &state,
     // Tap, do not hold: a held button on the title would be consumed as the
     // first frame's hand press in play.
     if ((frames_ % 30) < 6)
-      pad_.buttons |= rv_pdk::RV_ISOURCE_FRONT_BTTN_SOUTH;
+      pad_.buttons |= RV_ISOURCE_FRONT_BTTN_SOUTH;
     if (mode == SM_MODE_ENDING)
       finished_ = true;
     return &pad_;
@@ -337,7 +337,7 @@ sm_autopilot::drive(sm_mode mode, const sm_countdown &state,
     delta += 2.0f * SM_PI;
   pad_.right_stick.x = clampf(delta * 1.7f, -1.0f, 1.0f);
   pad_.right_stick.y = clampf((aim_pitch - player.pitch()) * 2.5f, -1.0f, 1.0f);
-  pad_.buttons |= rv_pdk::RV_ISOURCE_RIGHT_STICK_MOVE;
+  pad_.buttons |= RV_ISOURCE_RIGHT_STICK_MOVE;
 
   // The left stick is camera-relative, so the world travel direction is rotated
   // into the player's frame rather than assumed to be "forward".
@@ -362,13 +362,13 @@ sm_autopilot::drive(sm_mode mode, const sm_countdown &state,
       relative += 2.0f * SM_PI;
     pad_.left_stick.x = std::sin(relative);
     pad_.left_stick.y = std::cos(relative);
-    pad_.buttons |= rv_pdk::RV_ISOURCE_LEFT_STICK_MOVE;
+    pad_.buttons |= RV_ISOURCE_LEFT_STICK_MOVE;
   }
   if (unstick_ > 0.0f) {
     // Wedged: back off and slide sideways rather than grinding into the wall.
     pad_.left_stick.x = (frames_ % 120) < 60 ? 1.0f : -1.0f;
     pad_.left_stick.y = -0.4f;
-    pad_.buttons |= rv_pdk::RV_ISOURCE_LEFT_STICK_MOVE;
+    pad_.buttons |= RV_ISOURCE_LEFT_STICK_MOVE;
   }
 
   if (wants_deliberate_loss_) {
@@ -385,7 +385,7 @@ sm_autopilot::drive(sm_mode mode, const sm_countdown &state,
     // instant the pickup succeeds.
     if ((frames_ % 18) < 5) {
       pad_.right_trigger = 1.0f;
-      pad_.buttons |= rv_pdk::RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL;
+      pad_.buttons |= RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL;
     }
   } else if (threatened && target_range < SM_PIPE_RANGE * 0.9f &&
              combat.has(SM_ITEM_PIPE)) {
@@ -393,7 +393,7 @@ sm_autopilot::drive(sm_mode mode, const sm_countdown &state,
     // never consumed, so the harness cannot disarm itself.
     if ((frames_ % 26) < 6) {
       pad_.left_trigger = 1.0f;
-      pad_.buttons |= rv_pdk::RV_ISOURCE_LEFT_TRIGGER_SOFT_PULL;
+      pad_.buttons |= RV_ISOURCE_LEFT_TRIGGER_SOFT_PULL;
     }
   } else if (threatened && combat.has(SM_ITEM_BRICK) &&
              std::fabs(delta) < 0.30f) {
@@ -402,7 +402,7 @@ sm_autopilot::drive(sm_mode mode, const sm_countdown &state,
     // the trigger has to actually come back up.
     if ((frames_ % 54) < 30) {
       pad_.right_trigger = 1.0f;
-      pad_.buttons |= rv_pdk::RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL;
+      pad_.buttons |= RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL;
     }
   }
 
@@ -413,7 +413,7 @@ sm_autopilot::drive(sm_mode mode, const sm_countdown &state,
   // frames nothing was threatening it, which on a late shift is almost none —
   // exactly the trap a player would have been in.
   if (work_here && distance < SM_ASSEMBLY_REACH * 0.8f && !flee_here)
-    pad_.buttons |= rv_pdk::RV_ISOURCE_FRONT_BTTN_SOUTH;
+    pad_.buttons |= RV_ISOURCE_FRONT_BTTN_SOUTH;
 
   return &pad_;
 }
@@ -421,9 +421,9 @@ sm_autopilot::drive(sm_mode mode, const sm_countdown &state,
 // ── game
 // ──────────────────────────────────────────────────────────────────────
 
-void sm_game::initialize(rv_pdk::rv_pdko &pdk, sm_assets &assets, sm_gfx &gfx,
+void sm_game::initialize(rv_pdko *pdk, sm_assets &assets, sm_gfx &gfx,
                          sm_sound &sound) {
-  pdk_ = &pdk;
+  pdk_ = pdk;
   assets_ = &assets;
   gfx_ = &gfx;
   sound_ = &sound;
@@ -459,7 +459,7 @@ void sm_game::initialize(rv_pdk::rv_pdko &pdk, sm_assets &assets, sm_gfx &gfx,
       return;
     }
   }
-  has_save_ = sm_save_load(pdk.cm(), loaded);
+  has_save_ = sm_save_load(rv_pdko_cm(pdk), loaded);
   if (has_save_ && !loaded.finished) {
     state_ = loaded;
     // Resume the SHIFT, not the phase. The card records where the player was
@@ -608,7 +608,7 @@ void sm_game::begin_transition(sm_phase next_phase, sm_area next_area) {
 void sm_game::finish_transition() {
   state_.phase = pending_phase_;
   enter_area(pending_area_);
-  sm_save_store(pdk_ ? pdk_->cm() : nullptr, state_);
+  sm_save_store(pdk_ ? rv_pdko_cm(pdk_) : nullptr, state_);
   mode_ = SM_MODE_FADE_IN;
   mode_time_ = 0.0f;
 }
@@ -627,8 +627,8 @@ void sm_game::knock_out() {
 void sm_game::restart_run() {
   // Everything back to the beginning: five shifts, an intact apartment, five
   // lamps burning, and no save left behind for the next person to resume into.
-  if (pdk_ && pdk_->cm())
-    pdk_->cm()->card_erase(SM_SAVE_SLOT);
+  if (pdk_ && rv_pdko_cm(pdk_))
+    rv_cm_card_erase(rv_pdko_cm(pdk_), SM_SAVE_SLOT);
   state_ = sm_countdown{};
   has_save_ = false;
   combat_.reset();
@@ -653,7 +653,7 @@ void sm_game::restart_shift() {
                  state_.shifts_remaining);
   }
   enter_area(SM_AREA_HOME);
-  sm_save_store(pdk_ ? pdk_->cm() : nullptr, state_);
+  sm_save_store(pdk_ ? rv_pdko_cm(pdk_) : nullptr, state_);
   mode_ = SM_MODE_FADE_IN;
   mode_time_ = 0.0f;
   fade_ = 1.0f;
@@ -676,7 +676,7 @@ void sm_game::handle_triggers() {
     if (state_.is_final_lap()) {
       state_.finished = true;
       state_.phase = SM_PHASE_FINAL;
-      sm_save_store(pdk_ ? pdk_->cm() : nullptr, state_);
+      sm_save_store(pdk_ ? rv_pdko_cm(pdk_) : nullptr, state_);
       if (autopilot_.enabled()) {
         std::fprintf(stderr, "[play] БАНКРОТ — run finished\n");
       }
@@ -888,7 +888,7 @@ void sm_game::update_assembly(const sm_input &input, float dt) {
       // The shift ends by itself now. The player is told how many are left and
       // walks out on their behalf; there is no door to find.
       shift_end_ = SM_SHIFT_END_HOLD;
-      sm_save_store(pdk_ ? pdk_->cm() : nullptr, state_);
+      sm_save_store(pdk_ ? rv_pdko_cm(pdk_) : nullptr, state_);
     }
   }
 }
@@ -942,7 +942,7 @@ void sm_game::update(const sm_input &input, float dt) {
     if (input.cancel_pressed && has_save_) {
       state_ = sm_countdown{};
       has_save_ = false;
-      sm_save_store(pdk_ ? pdk_->cm() : nullptr, state_);
+      sm_save_store(pdk_ ? rv_pdko_cm(pdk_) : nullptr, state_);
       enter_area(SM_AREA_HOME);
     }
     if (input.confirm_pressed || input.cancel_pressed) {
@@ -987,7 +987,7 @@ void sm_game::update(const sm_input &input, float dt) {
     if (mode_time_ > SM_ENDING_HOLD + SM_ENDING_FADE && input.confirm_pressed) {
       state_ = sm_countdown{};
       has_save_ = false;
-      sm_save_store(pdk_ ? pdk_->cm() : nullptr, state_);
+      sm_save_store(pdk_ ? rv_pdko_cm(pdk_) : nullptr, state_);
       enter_area(SM_AREA_HOME);
       mode_ = SM_MODE_TITLE;
       mode_time_ = 0.0f;
@@ -1127,7 +1127,7 @@ void sm_game::render() {
         rv_vec3{x, 1.05f, 0.92f}, rv_vec3{x, 1.05f, 0.36f},
         rv_vec3{x, 0.50f, 0.92f}, rv_vec3{x, 0.50f, 0.36f}};
     gfx_->quad(screen, assets_->ref(SM_TEX_HOME_FURNITURE, tier),
-               SM_UV_TELEVISION_ON, rv_pdk::rv_color{255, 255, 255}, 4.0f);
+               SM_UV_TELEVISION_ON, rv_color{255, 255, 255}, 4.0f);
   }
 
   // The finished lamppost leaving on the conveyor. docs/environments.md puts
@@ -1145,7 +1145,7 @@ void sm_game::render() {
                              rv_vec3{0.70f, y, z0 + 1.60f},
                              rv_vec3{-0.70f, y, z0}, rv_vec3{0.70f, y, z0}};
     gfx_->quad(part, assets_->ref(SM_TEX_LAMPPOST_PARTS, tier),
-               SM_UV_PART_FINISHED, rv_pdk::rv_color{255, 255, 255}, 1.2f);
+               SM_UV_PART_FINISHED, rv_color{255, 255, 255}, 1.2f);
   }
 
   // The board. The only number in the game, painted on the wall it hangs on.
@@ -1157,11 +1157,11 @@ void sm_game::render() {
     // audio event in the design; this is its visual half, and it is what
     // makes the player look up at the one number in the game at the exact
     // moment it changes.
-    rv_pdk::rv_color ink = SM_BOARD_INK;
+    rv_color ink = SM_BOARD_INK;
     if (board_clack_ > 0.0f) {
       const int phase = static_cast<int>(board_clack_ * 9.0f) & 1;
-      ink = phase ? rv_pdk::rv_color{255, 248, 214}
-                  : rv_pdk::rv_color{150, 132, 82};
+      ink = phase ? rv_color{255, 248, 214}
+                  : rv_color{150, 132, 82};
     }
     sm_text_draw_world(*gfx_, *assets_, sm_factory_board_text_origin,
                        sm_factory_board_text_right, sm_factory_board_text_down,
@@ -1208,7 +1208,7 @@ void sm_game::render() {
         *gfx_, *assets_,
         clampf((mode_time_ - SM_ENDING_HOLD) / SM_ENDING_FADE, 0.0f, 1.0f));
   } else if (fade_ > 0.0f) {
-    sm_ui_draw_fade(*gfx_, fade_, rv_pdk::rv_color{0, 0, 0});
+    sm_ui_draw_fade(*gfx_, fade_, rv_color{0, 0, 0});
   }
 
   // The restart hold, drawn as it fills. A control that destroys a run must
@@ -1218,8 +1218,8 @@ void sm_game::render() {
     const int width =
         static_cast<int>(static_cast<float>(w - 40) *
                          clampf(restart_hold_ / SM_RESTART_HOLD, 0.0f, 1.0f));
-    gfx_->sprite(20, 6, w - 40, 5, rv_pdk::rv_color{28, 26, 22}, SM_DEPTH_HUD);
-    gfx_->sprite(20, 6, width, 5, rv_pdk::rv_color{198, 176, 96},
+    gfx_->sprite(20, 6, w - 40, 5, rv_color{28, 26, 22}, SM_DEPTH_HUD);
+    gfx_->sprite(20, 6, width, 5, rv_color{198, 176, 96},
                  SM_DEPTH_HUD + 1);
   }
 
@@ -1268,7 +1268,7 @@ void sm_game::shutdown() {
                          state_.assembly_step == 0 && !state_.finished;
   if (untouched)
     return;
-  sm_save_store(pdk_ ? pdk_->cm() : nullptr, state_);
+  sm_save_store(pdk_ ? rv_pdko_cm(pdk_) : nullptr, state_);
 }
 
 } // namespace solidmaid

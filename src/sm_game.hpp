@@ -14,8 +14,8 @@
 #include <cstdint>
 #include <vector>
 
-#include "pdk/cio/rv_isource.hpp"
-#include "pdk/rv_pdko.hpp"
+#include "pdk/cio/rv_isource.h"
+#include "pdk/rv_pdko.h"
 
 #include "sm_assets.hpp"
 #include "sm_combat.hpp"
@@ -55,7 +55,7 @@ public:
 
   // Called once per frame with what the autopilot can see. Returns the pad
   // state for this frame.
-  const rv_pdk::rv_istate *drive(sm_mode mode, const sm_countdown &state,
+  const rv_istate *drive(sm_mode mode, const sm_countdown &state,
                                  const sm_scene &scene, const sm_player &player,
                                  const sm_enemies &enemies,
                                  const sm_combat &combat, float dt);
@@ -64,7 +64,7 @@ public:
   int frames() const { return frames_; }
 
 private:
-  rv_pdk::rv_istate pad_{};
+  rv_istate pad_{};
   bool enabled_ = false;
   bool finished_ = false;
   int frames_ = 0;
@@ -85,7 +85,7 @@ private:
 
 class sm_game {
 public:
-  void initialize(rv_pdk::rv_pdko &pdk, sm_assets &assets, sm_gfx &gfx,
+  void initialize(rv_pdko *pdk, sm_assets &assets, sm_gfx &gfx,
                   sm_sound &sound);
   void update(const sm_input &input, float dt);
   void render();
@@ -93,7 +93,7 @@ public:
 
   bool wants_release() const { return release_; }
   // Non-null only while the autopilot is driving.
-  const rv_pdk::rv_istate *injected_pad() const { return injected_; }
+  const rv_istate *injected_pad() const { return injected_; }
 
   const sm_countdown &countdown() const { return state_; }
   const sm_player &player() const { return player_; }
@@ -110,7 +110,7 @@ private:
   void restart_shift();
   void build_hud(sm_hud_model &out) const;
 
-  rv_pdk::rv_pdko *pdk_ = nullptr;
+  rv_pdko *pdk_ = nullptr;
   sm_assets *assets_ = nullptr;
   sm_sound *sound_ = nullptr;
   sm_gfx *gfx_ = nullptr;
@@ -173,7 +173,7 @@ private:
 
   float last_dt_ = 0.0f;
   sm_input last_input_{};
-  const rv_pdk::rv_istate *injected_ = nullptr;
+  const rv_istate *injected_ = nullptr;
 };
 
 } // namespace solidmaid

@@ -55,7 +55,7 @@ void sm_ui_draw_viewmodel(sm_gfx &gfx, const sm_assets &assets,
                           int tier);
 
 // A full-screen curtain. `amount` 0 = clear, 1 = opaque.
-void sm_ui_draw_fade(sm_gfx &gfx, float amount, rv_pdk::rv_color colour);
+void sm_ui_draw_fade(sm_gfx &gfx, float amount, rv_color colour);
 
 // Knocked out. No text explains the rule; the shift simply begins again.
 void sm_ui_draw_knockout(sm_gfx &gfx, const sm_assets &assets, float amount);
